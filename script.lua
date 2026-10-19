@@ -39,6 +39,8 @@ local State = {
     Noclip = false,
     InfiniteJump = false,
     AutoFarm = false,
+    ScroomsAuto = false,
+    ScroomsSell = false,
     TeleportMode = "random",
     FlySpeed = 50,
     WalkSpeed = OrigWalkSpeed,
@@ -253,16 +255,59 @@ TabBar.BackgroundTransparency = 1
 TabBar.Position = UDim2.new(0, 8, 0, 32)
 TabBar.Size = UDim2.new(1, -16, 0, 25)
 
+-- ===== Detecção automática de jogo (Mushyo x Scrooms) =====
+local GameKind = "outro" -- "mushyo" | "scrooms" | "outro"
+do
+    local ok, info = pcall(function()
+        return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+    end)
+    local nome = (((ok and info and info.Name) or "") .. " " .. (game.Name or "")):lower()
+    if nome:find("scroom", 1, true) then
+        GameKind = "scrooms"
+    elseif nome:find("mushyo", 1, true) then
+        GameKind = "mushyo"
+    else
+        -- fallback: marcadores no workspace (Julian = vendedor do Scrooms)
+        for _, obj in ipairs(workspace:GetChildren()) do
+            local n = obj.Name:lower()
+            if n:find("scroom", 1, true) or n == "julian" then
+                GameKind = "scrooms"
+                break
+            elseif n:find("candy", 1, true) or n:find("mushyo", 1, true) then
+                GameKind = "mushyo"
+            end
+        end
+    end
+end
+print("[MUSH] Jogo detectado: " .. GameKind)
+
+-- Abas por jogo: campo [3] = jogos onde a aba aparece (nil = sempre)
 local TabData = {
-    {"🎃", "Evento"},
-    {"👤", "Player"},
-    {"🚀", "Fly"},
-    {"👁️", "Visual"},
-    {"⚙️", "Ajustes"}
+    {"🎃", "Evento", {"mushyo"}},
+    {"👤", "Player", {"mushyo"}},
+    {"🚀", "Fly", {"mushyo"}},
+    {"👁️", "Visual", {"mushyo"}},
+    {"🍄", "Scrooms", {"scrooms"}},
+    {"⚙️", "Ajustes", {"mushyo"}}
 }
 
+local function TabAllowed(games)
+    if GameKind == "outro" or not games then return true end
+    for _, g in ipairs(games) do
+        if g == GameKind then return true end
+    end
+    return false
+end
+
+local ShownTabs = {}
+for _, td in ipairs(TabData) do
+    if TabAllowed(td[3]) then ShownTabs[#ShownTabs + 1] = td end
+end
+if #ShownTabs == 0 then ShownTabs = TabData end
+
 local Tabs = {}
-for i, tabData in ipairs(TabData) do
+local tabW = 1 / #ShownTabs -- largura dinâmica (só abas do jogo atual)
+for i, tabData in ipairs(ShownTabs) do
     local tab = Instance.new("TextButton")
     tab.Parent = TabBar
     tab.Name = tabData[2]
@@ -272,8 +317,8 @@ for i, tabData in ipairs(TabData) do
     tab.TextColor3 = Color3.fromRGB(255, 255, 255)
     tab.TextSize = 10
     tab.Font = Enum.Font.GothamBold
-    tab.Position = UDim2.new((i - 1) * 0.2, 2, 0, 0)
-    tab.Size = UDim2.new(0.2, -4, 1, 0)
+    tab.Position = UDim2.new((i - 1) * tabW, 2, 0, 0)
+    tab.Size = UDim2.new(tabW, -4, 1, 0)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 4)
     corner.Parent = tab
@@ -314,6 +359,7 @@ local PlayerPage = CreatePage()
 local FlyPage = CreatePage()
 local VisualPage = CreatePage()
 local AjustesPage = CreatePage()
+local ScroomsPage = CreatePage()
 
 -- Função Toggle Compacta (FIX: layout correto)
 local function CreateToggle(parent, title, default, callback)
@@ -693,6 +739,42 @@ CreateButton(AjustesPage, "🔄 RESETAR TUDO", Color3.fromRGB(200, 50, 50), func
     ClearAllESP()
 end)
 
+-- ===== PÁGINA SCROOMS =====
+local ScroomsStatusLabel = Instance.new("TextLabel")
+ScroomsStatusLabel.Parent = ScroomsPage
+ScroomsStatusLabel.BackgroundTransparency = 1
+ScroomsStatusLabel.Font = Enum.Font.GothamBlack
+ScroomsStatusLabel.Text = "Status: parado"
+ScroomsStatusLabel.TextColor3 = Color3.fromRGB(255, 140, 0)
+ScroomsStatusLabel.TextSize = 13
+ScroomsStatusLabel.Size = UDim2.new(1, -10, 0, 22)
+ScroomsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+ScroomsStatusLabel.LayoutOrder = 0
+
+CreateToggle(ScroomsPage, "🍄 Auto Catch (farm)", false, function(enabled)
+    State.ScroomsAuto = enabled
+end)
+
+CreateToggle(ScroomsPage, "💰 Auto Sell (Julian)", false, function(enabled)
+    State.ScroomsSell = enabled
+end)
+
+CreateButton(ScroomsPage, "🔍 SCAN (aperte e DEPOIS abra a minigame)", Color3.fromRGB(80, 140, 255), function()
+    StartScroomsScan()
+end)
+
+local ScroomsInfo = Instance.new("TextLabel")
+ScroomsInfo.Parent = ScroomsPage
+ScroomsInfo.BackgroundTransparency = 1
+ScroomsInfo.Font = Enum.Font.Gotham
+ScroomsInfo.Text = "Dica: instrumento no slot 1. SCAN imprime a UI da minigame no console — se o auto catch não travar, cola o console aqui que eu afino."
+ScroomsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+ScroomsInfo.TextSize = 9
+ScroomsInfo.Size = UDim2.new(1, -10, 0, 30)
+ScroomsInfo.TextWrapped = true
+ScroomsInfo.TextXAlignment = Enum.TextXAlignment.Left
+ScroomsInfo.LayoutOrder = 99
+
 -- Sistema de Tabs
 local function SwitchTab(tabName)
     State.CurrentTab = tabName
@@ -706,6 +788,7 @@ local function SwitchTab(tabName)
     PlayerPage.Visible = (tabName == "Player")
     FlyPage.Visible = (tabName == "Fly")
     VisualPage.Visible = (tabName == "Visual")
+    ScroomsPage.Visible = (tabName == "Scrooms")
     AjustesPage.Visible = (tabName == "Ajustes")
 end
 
@@ -1119,8 +1202,9 @@ function CollectAllCandys()
     end
 end
 
--- Loop principal Auto Farm + ESP
+-- Loop principal Auto Farm + ESP (só roda em Mushyo/desconhecido)
 task.spawn(function()
+    if GameKind == "scrooms" then return end
     while true do
         task.wait(0.4)
         -- Atualiza contador sempre (pcall: um erro aqui derrubaria o loop)
@@ -1157,9 +1241,247 @@ task.spawn(function()
     end
 end)
 
--- Iniciar
-SwitchTab("Evento")
-print("🎃 Mush Hub carregado! Auto Farm + ESP Candy + Player ESP OK")
+-- ==========================================================
+-- SCROOMS AUTO FARM (jogo SCROOMS 🍄) — heurístico:
+-- o jogo é novo/fechado, então descobrimos a minigame em
+-- tempo real (nomes/textos de UI) em vez de remotes fixos.
+-- ==========================================================
+local VIM = game:GetService("VirtualUser")
+local scroomsLastSell = 0
+
+local function ScroomsStatus(text)
+    if ScroomsStatusLabel then
+        ScroomsStatusLabel.Text = "Status: " .. text
+    end
+end
+
+local function PressSlotKey()
+    pcall(function()
+        VIM:SendKeyEvent(true, Enum.KeyCode.One, false, game, 0)
+        task.wait(0.06)
+        VIM:SendKeyEvent(false, Enum.KeyCode.One, false, game, 0)
+    end)
+end
+
+local function ClickGui(g)
+    if not (g and g.Parent) then return end
+    pcall(function()
+        local pos = g.AbsolutePosition + g.AbsoluteSize * 0.5
+        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
+        task.wait(0.05)
+        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+    end)
+end
+
+local function FindInstrumentTool()
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    if not bp then return nil end
+    local keys = {"lute","guitar","ocarina","flute","whistle","harp","lyre","violin","trumpet","drum","banjo","instrument"}
+    local fallback = nil
+    for _, t in ipairs(bp:GetChildren()) do
+        if t:IsA("Tool") then
+            fallback = fallback or t
+            local n = t.Name:lower()
+            for _, k in ipairs(keys) do
+                if n:find(k, 1, true) then return t end
+            end
+        end
+    end
+    return fallback
+end
+
+local function EnsureEquipped()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not (char and hum) then return end
+    if char:FindFirstChildOfClass("Tool") then return end
+    local tool = FindInstrumentTool()
+    if tool then pcall(function() hum:EquipTool(tool) end) end
+end
+
+-- Botões/frames da minigame (tune/catch/perfect) por nome OU texto
+local MINGUI_KEYS = {"catch","tune","tuning","frequency","rhythm","minigame","scroom","perfect","pitch","strum"}
+local function GetMinigameTargets()
+    local out = {}
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return out end
+    for _, g in ipairs(pg:GetDescendants()) do
+        if (g:IsA("GuiButton") or g:IsA("Frame")) and g.Visible and g.AbsoluteSize.X > 4 then
+            local hit = false
+            local n = g.Name:lower()
+            for _, k in ipairs(MINGUI_KEYS) do
+                if n:find(k, 1, true) then hit = true break end
+            end
+            if not hit and g:IsA("GuiButton") then
+                pcall(function()
+                    local t = tostring(g.Text):lower()
+                    for _, k in ipairs(MINGUI_KEYS) do
+                        if t:find(k, 1, true) then hit = true break end
+                    end
+                end)
+            end
+            if hit then table.insert(out, g) end
+        end
+    end
+    return out
+end
+
+-- Trava o cursor/bola DENTRO da zona (frame Position) todo frame
+local ZONE_KEYS = {"zone","target","goal","catcharea","safe"}
+local BALL_KEYS = {"ball","cursor","marker","pointer","slider","indicator","note"}
+local function SnapCatchZone()
+    if not State.ScroomsAuto then return end
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return end
+    local zone, ball = nil, nil
+    for _, g in ipairs(pg:GetDescendants()) do
+        if g:IsA("GuiObject") and g.Visible then
+            local n = g.Name:lower()
+            if not zone then
+                for _, k in ipairs(ZONE_KEYS) do
+                    if n:find(k, 1, true) then zone = g break end
+                end
+            end
+            if not ball then
+                for _, k in ipairs(BALL_KEYS) do
+                    if n:find(k, 1, true) then ball = g break end
+                end
+            end
+        end
+    end
+    if not (zone and ball and ball.Parent and ball.Parent:IsA("GuiObject")) then return end
+    pcall(function()
+        local zc = zone.AbsolutePosition + zone.AbsoluteSize * 0.5
+        local p = ball.Parent.AbsolutePosition
+        local bs = ball.AbsoluteSize
+        ball.Position = UDim2.fromOffset(zc.X - p.X - bs.X * 0.5, zc.Y - p.Y - bs.Y * 0.5)
+    end)
+end
+pcall(function() RunService:UnbindFromRenderStep("MushScroomsSnap") end)
+RunService:BindToRenderStep("MushScroomsSnap", Enum.RenderPriority.Last.Value + 1, SnapCatchZone)
+
+-- Venda: clica botões com "sell/confirm" e, se não houver, vai no NPC
+local function ClickSellButtons()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    local clicked = 0
+    if not pg then return 0 end
+    for _, g in ipairs(pg:GetDescendants()) do
+        if g:IsA("GuiButton") and g.Visible and clicked < 3 then
+            local t = ""
+            pcall(function() t = tostring(g.Text):lower() end)
+            if t:find("sell", 1, true) or t:find("confirm", 1, true) then
+                ClickGui(g)
+                clicked += 1
+                task.wait(0.4)
+            end
+        end
+    end
+    return clicked
+end
+
+local function FindSellNPC()
+    for _, m in ipairs(workspace:GetDescendants()) do
+        if m:IsA("Model") then
+            local n = m.Name:lower()
+            if n:find("julian", 1, true) or n:find("merchant", 1, true)
+                or n:find("shopkeep", 1, true) or n:find("vendor", 1, true) then
+                return m
+            end
+        end
+    end
+    return nil
+end
+
+local function DoAutoSell()
+    ScroomsStatus("vendendo...")
+    local clicked = ClickSellButtons()
+    if clicked == 0 then
+        local npc = FindSellNPC()
+        if npc and LocalPlayer.Character then
+            pcall(function()
+                LocalPlayer.Character:PivotTo(npc:GetPivot() * CFrame.new(0, 0, -3))
+            end)
+            task.wait(0.4)
+            local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if prompt and fireproximityprompt then
+                pcall(function() fireproximityprompt(prompt) end)
+                task.wait(0.6)
+                clicked = ClickSellButtons()
+            end
+        end
+    end
+    ScroomsStatus(clicked > 0 and ("vendido (" .. clicked .. " cliques)") or "venda: nada clicável (SCAN?)")
+end
+
+-- SCAN: imprime no console a UI NOVA que aparecer (a minigame)
+function StartScroomsScan()
+    task.spawn(function()
+        ScroomsStatus("SCAN: abra a minigame agora!")
+        local known = {}
+        local pass = 0
+        for _ = 1, 16 do
+            pass += 1
+            local pg = LocalPlayer:FindFirstChild("PlayerGui")
+            if pg then
+                for _, g in ipairs(pg:GetDescendants()) do
+                    if g:IsA("GuiObject") and g.Visible then
+                        local key = g:GetFullName()
+                        if not known[key] then
+                            if pass > 1 then
+                                pcall(function()
+                                    local txt = g:IsA("GuiButton") and (" text='" .. tostring(g.Text) .. "'") or ""
+                                    print("[MUSH SCAN] " .. key .. " (" .. g.ClassName .. ")" .. txt)
+                                end)
+                            end
+                            known[key] = true
+                        end
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+        ScroomsStatus("SCAN pronto — cola o console aqui")
+    end)
+end
+
+-- Loop principal do auto farm (só roda em SCROOMS)
+task.spawn(function()
+    if GameKind == "mushyo" then return end -- scrooms loop morto só no Mushyo
+    local tickN = 0
+    while true do
+        task.wait(0.5)
+        tickN += 1
+        if State.ScroomsAuto then
+            pcall(function()
+                EnsureEquipped()
+                local targets = GetMinigameTargets()
+                if #targets > 0 then
+                    ScroomsStatus("minigame detectada (" .. #targets .. ")")
+                    ClickGui(targets[1])
+                elseif tickN % 3 == 0 then
+                    ScroomsStatus("tocando (re-cast)")
+                    PressSlotKey()
+                end
+            end)
+        end
+        if State.ScroomsSell and os.clock() - scroomsLastSell > 30 then
+            scroomsLastSell = os.clock()
+            pcall(DoAutoSell)
+        end
+    end
+end)
+
+-- Iniciar (aba inicial = primeira aba visível do jogo detectado)
+local firstTab = ShownTabs[1] and ShownTabs[1][2] or "Evento"
+if not Tabs[firstTab] then firstTab = next(Tabs) or "Evento" end
+SwitchTab(firstTab)
+if GameKind == "scrooms" then
+    print("🎃 Mush Hub carregado! (SCROOMS — só abas do Scrooms)")
+elseif GameKind == "mushyo" then
+    print("🎃 Mush Hub carregado! (Mushyo — Auto Farm + ESP Candy + Player ESP OK)")
+else
+    print("🎃 Mush Hub carregado! (jogo não reconhecido — todas as abas)")
+end
 -- Notificação
 game.StarterGui:SetCore("SendNotification", {
     Title = "🎃 Mush Hub",
