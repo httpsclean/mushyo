@@ -161,20 +161,36 @@ RestoreBtn.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
 RestoreBtn.BackgroundTransparency = 0.1
 RestoreBtn.Visible = false
 RestoreBtn.AutoButtonColor = true
+local iconFallback = Instance.new("TextLabel")
+iconFallback.Name = "IconFallback"
+iconFallback.Parent = RestoreBtn
+iconFallback.Size = UDim2.new(1, 0, 1, 0)
+iconFallback.BackgroundTransparency = 1
+iconFallback.Text = "🎃"
+iconFallback.TextColor3 = Color3.fromRGB(255, 140, 0)
+iconFallback.TextSize = 28
+iconFallback.Font = Enum.Font.GothamBlack
+iconFallback.Visible = false
+
 if MINIMIZE_ICON ~= "rbxassetid://0" and MINIMIZE_ICON ~= "" then
     RestoreBtn.Image = MINIMIZE_ICON
     RestoreBtn.ScaleType = Enum.ScaleType.Crop
+    -- Força o download AGORA; se a imagem não chegar, mostra 🎃 no lugar
+    task.spawn(function()
+        pcall(function()
+            game:GetService("ContentProvider"):PreloadAsync({MINIMIZE_ICON})
+        end)
+        for _ = 1, 30 do -- ~6s de paciência
+            if RestoreBtn.IsLoaded then
+                iconFallback.Visible = false
+                return
+            end
+            task.wait(0.2)
+        end
+        iconFallback.Visible = true -- não carregou (lenta/bloqueada)
+    end)
 else
-    -- ImageButton não tem Text → fallback 🎃 num Label por cima
-    local iconFallback = Instance.new("TextLabel")
-    iconFallback.Name = "IconFallback"
-    iconFallback.Parent = RestoreBtn
-    iconFallback.Size = UDim2.new(1, 0, 1, 0)
-    iconFallback.BackgroundTransparency = 1
-    iconFallback.Text = "🎃"
-    iconFallback.TextColor3 = Color3.fromRGB(255, 140, 0)
-    iconFallback.TextSize = 28
-    iconFallback.Font = Enum.Font.GothamBlack
+    iconFallback.Visible = true
 end
 local RestoreCorner = Instance.new("UICorner")
 RestoreCorner.CornerRadius = UDim.new(0, 12)
