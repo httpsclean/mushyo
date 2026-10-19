@@ -1,7 +1,7 @@
 --[[
-    Script: Halloween Hub V2 - Premium Edition
+    Script: Halloween Hub V3 - Mobile Optimized
     Executor: Delta
-    Versão: 2.0
+    Versão: 3.0
 ]]
 
 -- Configurações Globais
@@ -20,6 +20,12 @@ local Settings = {
         Frame = 0.15,
         Button = 0.25,
         Input = 0.2
+    },
+    Sizes = {
+        Small = UDim2.new(0, 280, 0, 400),
+        Medium = UDim2.new(0, 400, 0, 500),
+        Large = UDim2.new(0, 500, 0, 600),
+        XLarge = UDim2.new(0, 700, 0, 600)
     }
 }
 
@@ -36,6 +42,9 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
+-- Detectar Mobile
+local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
 -- Variáveis de Estado
 local State = {
     Fly = false,
@@ -50,7 +59,8 @@ local State = {
     WalkSpeed = 16,
     JumpPower = 50,
     NoclipEnabled = false,
-    ESPColor = Color3.fromRGB(255, 140, 0)
+    ESPColor = Color3.fromRGB(255, 140, 0),
+    CurrentSize = IsMobile and "Medium" or "Large"
 }
 
 -- Sistema de Notificações
@@ -65,36 +75,28 @@ local function Notify(title, message, duration)
     frame.BackgroundColor3 = Settings.Theme.Primary
     frame.BackgroundTransparency = 0.1
     frame.BorderSizePixel = 0
-    frame.Position = UDim2.new(1, -300, 0, 10)
-    frame.Size = UDim2.new(0, 280, 0, 60)
+    frame.Position = UDim2.new(1, -280, 0, 10)
+    frame.Size = UDim2.new(0, 260, 0, 55)
     frame.Parent = NotificationHolder
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
+    corner.CornerRadius = UDim.new(0, 10)
     corner.Parent = frame
     
     local stroke = Instance.new("UIStroke")
     stroke.Color = Settings.Theme.Accent
-    stroke.Thickness = 1.5
+    stroke.Thickness = 1
     stroke.Transparency = 0.3
     stroke.Parent = frame
-    
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Settings.Theme.Primary),
-        ColorSequenceKeypoint.new(1, Settings.Theme.Secondary)
-    })
-    gradient.Rotation = 90
-    gradient.Parent = frame
     
     local title = Instance.new("TextLabel")
     title.BackgroundTransparency = 1
     title.Font = Enum.Font.GothamBold
     title.Text = title
     title.TextColor3 = Settings.Theme.Accent
-    title.TextSize = 14
-    title.Position = UDim2.new(0, 10, 0, 5)
-    title.Size = UDim2.new(1, -20, 0, 20)
+    title.TextSize = 13
+    title.Position = UDim2.new(0, 8, 0, 3)
+    title.Size = UDim2.new(1, -16, 0, 18)
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = frame
     
@@ -103,38 +105,21 @@ local function Notify(title, message, duration)
     msg.Font = Enum.Font.Gotham
     msg.Text = message
     msg.TextColor3 = Settings.Theme.Text
-    msg.TextSize = 12
-    msg.Position = UDim2.new(0, 10, 0, 25)
-    msg.Size = UDim2.new(1, -20, 0, 30)
+    msg.TextSize = 11
+    msg.Position = UDim2.new(0, 8, 0, 22)
+    msg.Size = UDim2.new(1, -16, 0, 28)
     msg.TextXAlignment = Enum.TextXAlignment.Left
     msg.TextWrapped = true
     msg.Parent = frame
     
-    -- Animação de entrada
-    frame.Position = UDim2.new(1, -300, 0, 10)
-    TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Position = UDim2.new(1, -300, 0, 10)
-    }):Play()
-    
-    -- Remover após duração
     task.delay(duration, function()
-        TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            Position = UDim2.new(1, 0, 0, 10),
-            BackgroundTransparency = 1
-        }):Play()
-        task.wait(0.5)
-        frame:Destroy()
+        frame:TweenPosition(UDim2.new(1, 0, 0, 10), "Out", "Quad", 0.5, false, function()
+            frame:Destroy()
+        end)
     end)
 end
 
--- Sistema de Tabs
-local MainGui = Instance.new("ScreenGui")
-MainGui.Name = "HalloweenHubV2"
-MainGui.ResetOnSpawn = false
-MainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-MainGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
--- Função para criar elementos com tema
+-- Função para criar elementos
 local function CreateElement(class, props)
     local element = Instance.new(class)
     for prop, value in props do
@@ -143,14 +128,14 @@ local function CreateElement(class, props)
     return element
 end
 
--- Função para aplicar tema a botões
+-- Função para estilizar botões
 local function StyleButton(button, color)
     button.BackgroundColor3 = color or Settings.Theme.Secondary
     button.BackgroundTransparency = Settings.Transparency.Button
     button.BorderSizePixel = 0
     button.Font = Enum.Font.GothamBold
     button.TextColor3 = Settings.Theme.Text
-    button.TextSize = 14
+    button.TextSize = IsMobile and 11 or 14
     
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
@@ -163,6 +148,13 @@ local function StyleButton(button, color)
     stroke.Parent = button
 end
 
+-- GUI Principal
+local MainGui = Instance.new("ScreenGui")
+MainGui.Name = "HalloweenHubV3"
+MainGui.ResetOnSpawn = false
+MainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+MainGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
 -- Frame Principal
 local MainFrame = CreateElement("Frame", {
     Name = "MainFrame",
@@ -170,173 +162,107 @@ local MainFrame = CreateElement("Frame", {
     BackgroundColor3 = Settings.Theme.Primary,
     BackgroundTransparency = Settings.Transparency.Frame,
     BorderSizePixel = 0,
-    Position = UDim2.new(0.5, -350, 0.5, -300),
-    Size = UDim2.new(0, 700, 0, 600),
+    Position = UDim2.new(0.5, -200, 0.5, -250),
+    Size = Settings.Sizes[State.CurrentSize],
     Active = true,
     Draggable = true
 })
 
--- Efeitos do Frame Principal
-local MainCorner = CreateElement("UICorner", {
-    Parent = MainFrame,
-    CornerRadius = UDim.new(0, 20)
-})
+-- Efeitos
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 15)
+MainCorner.Parent = MainFrame
 
-local MainStroke = CreateElement("UIStroke", {
-    Parent = MainFrame,
-    Color = Settings.Theme.Accent,
-    Thickness = 2,
-    Transparency = 0.2
-})
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Settings.Theme.Accent
+MainStroke.Thickness = 2
+MainStroke.Transparency = 0.2
+MainStroke.Parent = MainFrame
 
-local MainGradient = CreateElement("UIGradient", {
-    Parent = MainFrame,
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Settings.Theme.Primary),
-        ColorSequenceKeypoint.new(1, Settings.Theme.Secondary)
-    }),
-    Rotation = 90
+local MainGradient = Instance.new("UIGradient")
+MainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Settings.Theme.Primary),
+    ColorSequenceKeypoint.new(1, Settings.Theme.Secondary)
 })
+MainGradient.Rotation = 90
+MainGradient.Parent = MainFrame
 
 -- Header
 local Header = CreateElement("Frame", {
     Parent = MainFrame,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 20, 0, 15),
-    Size = UDim2.new(1, -40, 0, 50)
+    Position = UDim2.new(0, 10, 0, 8),
+    Size = UDim2.new(1, -20, 0, 40)
 })
 
 local Title = CreateElement("TextLabel", {
     Parent = Header,
     BackgroundTransparency = 1,
     Font = Enum.Font.GothamBlack,
-    Text = "🎃 HALLOWEEN HUB V2",
+    Text = "🎃 HALLOWEEN HUB",
     TextColor3 = Settings.Theme.Accent,
-    TextSize = 28,
+    TextSize = IsMobile and 18 or 24,
     Position = UDim2.new(0, 0, 0, 0),
-    Size = UDim2.new(0, 400, 1, 0),
+    Size = UDim2.new(0, 200, 1, 0),
     TextXAlignment = Enum.TextXAlignment.Left
 })
 
-local TitleStroke = CreateElement("UIStroke", {
-    Parent = Title,
-    Color = Settings.Theme.AccentDark,
-    Thickness = 2,
-    Transparency = 0.3
-})
-
-local Subtitle = CreateElement("TextLabel", {
-    Parent = Header,
-    BackgroundTransparency = 1,
-    Font = Enum.Font.Gotham,
-    Text = "Premium Edition • Delta Executor",
-    TextColor3 = Settings.Theme.TextDim,
-    TextSize = 12,
-    Position = UDim2.new(0, 0, 1, -15),
-    Size = UDim2.new(0, 200, 0, 15),
-    TextXAlignment = Enum.TextXAlignment.Left
-})
-
--- Botão Fechar
 local CloseButton = CreateElement("TextButton", {
     Parent = Header,
     BackgroundColor3 = Settings.Theme.Danger,
     BackgroundTransparency = 0.3,
     Text = "✕",
     TextColor3 = Settings.Theme.Text,
-    TextSize = 18,
+    TextSize = 14,
     Font = Enum.Font.GothamBold,
-    Position = UDim2.new(1, -40, 0, 0),
-    Size = UDim2.new(0, 35, 0, 35)
+    Position = UDim2.new(1, -35, 0, 0),
+    Size = UDim2.new(0, 30, 0, 30)
 })
 
-local CloseCorner = CreateElement("UICorner", {
-    Parent = CloseButton,
-    CornerRadius = UDim.new(0, 10)
-})
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseButton
 
--- Sistema de Tabs
+-- Tabs
 local TabBar = CreateElement("Frame", {
     Parent = MainFrame,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 20, 0, 80),
-    Size = UDim2.new(1, -40, 0, 40)
+    Position = UDim2.new(0, 10, 0, 50),
+    Size = UDim2.new(1, -20, 0, 30)
 })
 
-local Tabs = {
-    Halloween = CreateElement("TextButton", {
-        Parent = TabBar,
-        Text = "🎃 Evento",
-        BackgroundColor3 = Settings.Theme.Accent,
-        BackgroundTransparency = 0.2,
-        TextColor3 = Settings.Theme.Text,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
-        Position = UDim2.new(0, 0, 0, 0),
-        Size = UDim2.new(0, 120, 1, 0)
-    }),
-    Player = CreateElement("TextButton", {
-        Parent = TabBar,
-        Text = "👤 Player",
-        BackgroundColor3 = Settings.Theme.Secondary,
-        BackgroundTransparency = 0.3,
-        TextColor3 = Settings.Theme.Text,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
-        Position = UDim2.new(0, 130, 0, 0),
-        Size = UDim2.new(0, 120, 1, 0)
-    }),
-    Movement = CreateElement("TextButton", {
-        Parent = TabBar,
-        Text = "🚀 Movimento",
-        BackgroundColor3 = Settings.Theme.Secondary,
-        BackgroundTransparency = 0.3,
-        TextColor3 = Settings.Theme.Text,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
-        Position = UDim2.new(0, 260, 0, 0),
-        Size = UDim2.new(0, 120, 1, 0)
-    }),
-    Visual = CreateElement("TextButton", {
-        Parent = TabBar,
-        Text = "👁️ Visual",
-        BackgroundColor3 = Settings.Theme.Secondary,
-        BackgroundTransparency = 0.3,
-        TextColor3 = Settings.Theme.Text,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
-        Position = UDim2.new(0, 390, 0, 0),
-        Size = UDim2.new(0, 120, 1, 0)
-    }),
-    Settings = CreateElement("TextButton", {
-        Parent = TabBar,
-        Text = "⚙️ Ajustes",
-        BackgroundColor3 = Settings.Theme.Secondary,
-        BackgroundTransparency = 0.3,
-        TextColor3 = Settings.Theme.Text,
-        TextSize = 14,
-        Font = Enum.Font.GothamBold,
-        Position = UDim2.new(0, 520, 0, 0),
-        Size = UDim2.new(0, 120, 1, 0)
-    })
-}
+local TabNames = {"🎃", "👤", "🚀", "👁️", "⚙️"}
+local TabFullNames = {"Evento", "Player", "Movimento", "Visual", "Ajustes"}
+local Tabs = {}
+local TabPositions = {0, 0.21, 0.42, 0.63, 0.84}
 
--- Estilizar tabs
-for _, tab in pairs(Tabs) do
+for i = 1, 5 do
+    Tabs[TabFullNames[i]] = CreateElement("TextButton", {
+        Parent = TabBar,
+        Text = TabNames[i],
+        BackgroundColor3 = i == 1 and Settings.Theme.Accent or Settings.Theme.Secondary,
+        BackgroundTransparency = 0.3,
+        TextColor3 = Settings.Theme.Text,
+        TextSize = IsMobile and 14 or 16,
+        Font = Enum.Font.GothamBold,
+        Position = UDim2.new(TabPositions[i], 0, 0, 0),
+        Size = UDim2.new(0.19, 0, 1, 0)
+    })
+    
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = tab
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = Tabs[TabFullNames[i]]
 end
 
--- Container de Conteúdo
+-- Container
 local ContentContainer = CreateElement("Frame", {
     Parent = MainFrame,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 20, 0, 130),
-    Size = UDim2.new(1, -40, 1, -150)
+    Position = UDim2.new(0, 10, 0, 85),
+    Size = UDim2.new(1, -20, 1, -95)
 })
 
--- Função para criar páginas
+-- Criar páginas
 local function CreatePage()
     local page = CreateElement("Frame", {
         Parent = ContentContainer,
@@ -347,7 +273,6 @@ local function CreatePage()
     return page
 end
 
--- Páginas
 local HalloweenPage = CreatePage()
 local PlayerPage = CreatePage()
 local MovementPage = CreatePage()
@@ -356,48 +281,32 @@ local SettingsPage = CreatePage()
 
 -- Função para criar seção
 local function CreateSection(parent, title, yPos)
-    local section = CreateElement("Frame", {
+    local section = CreateElement("TextLabel", {
         Parent = parent,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, yPos),
-        Size = UDim2.new(1, 0, 0, 30)
-    })
-    
-    local sectionTitle = CreateElement("TextLabel", {
-        Parent = section,
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamBold,
         Text = title,
         TextColor3 = Settings.Theme.Accent,
-        TextSize = 16,
-        Position = UDim2.new(0, 0, 0, 0),
-        Size = UDim2.new(1, 0, 1, 0),
+        TextSize = IsMobile and 13 or 16,
+        Position = UDim2.new(0, 0, 0, yPos),
+        Size = UDim2.new(1, 0, 0, 20),
         TextXAlignment = Enum.TextXAlignment.Left
     })
-    
-    local line = CreateElement("Frame", {
-        Parent = section,
-        BackgroundColor3 = Settings.Theme.Accent,
-        BackgroundTransparency = 0.5,
-        Position = UDim2.new(0, 0, 1, -2),
-        Size = UDim2.new(1, 0, 0, 1)
-    })
-    
     return section
 end
 
--- Função para criar toggle
+-- Função para criar toggle (corrigida)
 local function CreateToggle(parent, title, yPos, default, callback)
     local toggle = CreateElement("TextButton", {
         Parent = parent,
         BackgroundColor3 = default and Settings.Theme.Success or Settings.Theme.Secondary,
         BackgroundTransparency = Settings.Transparency.Button,
-        Text = title .. ": " .. (default and "ON" or "OFF"),
+        Text = title,
         TextColor3 = Settings.Theme.Text,
-        TextSize = 14,
+        TextSize = IsMobile and 11 or 14,
         Font = Enum.Font.GothamMedium,
         Position = UDim2.new(0, 0, 0, yPos),
-        Size = UDim2.new(0, 280, 0, 35)
+        Size = UDim2.new(0, IsMobile and 240 or 280, 0, 30)
     })
     
     StyleButton(toggle, default and Settings.Theme.Success or Settings.Theme.Secondary)
@@ -405,51 +314,62 @@ local function CreateToggle(parent, title, yPos, default, callback)
     local enabled = default
     toggle.MouseButton1Click:Connect(function()
         enabled = not enabled
-        toggle.Text = title .. ": " .. (enabled and "ON" or "OFF")
         toggle.BackgroundColor3 = enabled and Settings.Theme.Success or Settings.Theme.Secondary
         StyleButton(toggle, enabled and Settings.Theme.Success or Settings.Theme.Secondary)
         if callback then callback(enabled) end
     end)
     
+    -- Indicador de status
+    local status = CreateElement("TextLabel", {
+        Parent = toggle,
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Text = enabled and "ON" or "OFF",
+        TextColor3 = enabled and Settings.Theme.Success or Settings.Theme.Danger,
+        TextSize = IsMobile and 10 or 12,
+        Position = UDim2.new(0.8, 0, 0, 0),
+        Size = UDim2.new(0.2, -5, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Right
+    })
+    
     return toggle
 end
 
--- Função para criar slider
+-- Função para criar slider (corrigida)
 local function CreateSlider(parent, title, yPos, min, max, default, callback)
     local container = CreateElement("Frame", {
         Parent = parent,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 0, 0, yPos),
-        Size = UDim2.new(0, 280, 0, 45)
+        Size = UDim2.new(0, IsMobile and 240 or 280, 0, 40)
     })
     
     local label = CreateElement("TextLabel", {
         Parent = container,
         BackgroundTransparency = 1,
         Font = Enum.Font.GothamMedium,
-        Text = title .. ": " .. default,
+        Text = title .. ": " .. math.floor(default),
         TextColor3 = Settings.Theme.Text,
-        TextSize = 14,
+        TextSize = IsMobile and 11 or 13,
         Position = UDim2.new(0, 0, 0, 0),
-        Size = UDim2.new(1, 0, 0, 20),
+        Size = UDim2.new(1, 0, 0, 18),
         TextXAlignment = Enum.TextXAlignment.Left
     })
     
-    local slider = CreateElement("TextButton", {
+    local sliderBg = CreateElement("Frame", {
         Parent = container,
         BackgroundColor3 = Settings.Theme.Secondary,
         BackgroundTransparency = 0.3,
-        Text = "",
-        Position = UDim2.new(0, 0, 0, 25),
-        Size = UDim2.new(1, 0, 0, 15)
+        Position = UDim2.new(0, 0, 0, 22),
+        Size = UDim2.new(1, 0, 0, 12)
     })
     
     local sliderCorner = Instance.new("UICorner")
-    sliderCorner.CornerRadius = UDim.new(0, 5)
-    sliderCorner.Parent = slider
+    sliderCorner.CornerRadius = UDim.new(0, 4)
+    sliderCorner.Parent = sliderBg
     
     local fill = CreateElement("Frame", {
-        Parent = slider,
+        Parent = sliderBg,
         BackgroundColor3 = Settings.Theme.Accent,
         BackgroundTransparency = 0.2,
         BorderSizePixel = 0,
@@ -457,32 +377,42 @@ local function CreateSlider(parent, title, yPos, min, max, default, callback)
     })
     
     local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(0, 5)
+    fillCorner.CornerRadius = UDim.new(0, 4)
     fillCorner.Parent = fill
     
     local value = default
     
-    slider.MouseButton1Down:Connect(function()
-        local dragging = true
-        local connection = RunService.RenderStepped:Connect(function()
-            if dragging then
+    -- Suporte a touch e mouse
+    local function UpdateSlider(inputPosition)
+        local sliderPos = sliderBg.AbsolutePosition
+        local sliderSize = sliderBg.AbsoluteSize
+        local relativeX = math.clamp((inputPosition.X - sliderPos.X) / sliderSize.X, 0, 1)
+        value = min + (max - min) * relativeX
+        fill.Size = UDim2.new(relativeX, 0, 1, 0)
+        label.Text = title .. ": " .. math.floor(value)
+        if callback then callback(value) end
+    end
+    
+    -- Mouse
+    sliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            UpdateSlider(input.Position)
+            local connection
+            connection = RunService.RenderStepped:Connect(function()
                 local mousePos = UserInputService:GetMouseLocation()
-                local sliderPos = slider.AbsolutePosition
-                local sliderSize = slider.AbsoluteSize
-                local relativeX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
-                value = min + (max - min) * relativeX
-                fill.Size = UDim2.new(relativeX, 0, 1, 0)
-                label.Text = title .. ": " .. math.floor(value)
-                if callback then callback(value) end
-            end
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging = false
-                connection:Disconnect()
-            end
-        end)
+                UpdateSlider(mousePos)
+            end)
+            UserInputService.InputEnded:Connect(function(endInput)
+                if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                    connection:Disconnect()
+                end
+            end)
+        end
+    end)
+    
+    -- Touch drag
+    sliderBg.TouchMoved:Connect(function(touch, position)
+        UpdateSlider(position)
     end)
     
     return container
@@ -494,7 +424,7 @@ local function CreateDropdown(parent, title, options, yPos, callback)
         Parent = parent,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 0, 0, yPos),
-        Size = UDim2.new(0, 280, 0, 40)
+        Size = UDim2.new(0, IsMobile and 240 or 280, 0, 35)
     })
     
     local label = CreateElement("TextLabel", {
@@ -503,9 +433,9 @@ local function CreateDropdown(parent, title, options, yPos, callback)
         Font = Enum.Font.GothamMedium,
         Text = title,
         TextColor3 = Settings.Theme.Text,
-        TextSize = 14,
+        TextSize = IsMobile and 11 or 13,
         Position = UDim2.new(0, 0, 0, 0),
-        Size = UDim2.new(1, 0, 0, 20),
+        Size = UDim2.new(1, 0, 0, 15),
         TextXAlignment = Enum.TextXAlignment.Left
     })
     
@@ -515,10 +445,10 @@ local function CreateDropdown(parent, title, options, yPos, callback)
         BackgroundTransparency = 0.3,
         Text = options[1],
         TextColor3 = Settings.Theme.Text,
-        TextSize = 13,
+        TextSize = IsMobile and 11 or 13,
         Font = Enum.Font.GothamMedium,
-        Position = UDim2.new(0, 0, 0, 20),
-        Size = UDim2.new(1, 0, 0, 20)
+        Position = UDim2.new(0, 0, 0, 16),
+        Size = UDim2.new(1, 0, 0, 19)
     })
     
     StyleButton(dropdown)
@@ -542,57 +472,29 @@ end
 -- ============ PÁGINA HALLOWEEN ============
 CreateSection(HalloweenPage, "🎃 Evento de Halloween", 0)
 
--- Informações do evento
-local EventInfo = CreateElement("Frame", {
-    Parent = HalloweenPage,
-    BackgroundColor3 = Settings.Theme.Secondary,
-    BackgroundTransparency = 0.2,
-    Position = UDim2.new(0, 0, 0, 40),
-    Size = UDim2.new(0, 600, 0, 60)
-})
-
-local EventCorner = Instance.new("UICorner")
-EventCorner.CornerRadius = UDim.new(0, 10)
-EventCorner.Parent = EventInfo
-
-local EventText = CreateElement("TextLabel", {
-    Parent = EventInfo,
-    BackgroundTransparency = 1,
-    Font = Enum.Font.Gotham,
-    Text = "🍬 Encontre todos os candys do evento!\nClique para teleportar automaticamente",
-    TextColor3 = Settings.Theme.TextDim,
-    TextSize = 13,
-    Position = UDim2.new(0, 10, 0, 5),
-    Size = UDim2.new(1, -20, 1, -10),
-    TextWrapped = true
-})
-
--- Contador de candys
 local CandyCounter = CreateElement("TextLabel", {
     Parent = HalloweenPage,
     BackgroundTransparency = 1,
     Font = Enum.Font.GothamBlack,
     Text = "🍬 Candys: 0",
     TextColor3 = Settings.Theme.Accent,
-    TextSize = 20,
-    Position = UDim2.new(0, 0, 0, 110),
-    Size = UDim2.new(0, 300, 0, 30),
+    TextSize = IsMobile and 16 or 20,
+    Position = UDim2.new(0, 0, 0, 25),
+    Size = UDim2.new(0, 200, 0, 25),
     TextXAlignment = Enum.TextXAlignment.Left
 })
 
--- Toggles Halloween
-CreateToggle(HalloweenPage, "🍬 Auto Farm Candys", 150, false, function(enabled)
+CreateToggle(HalloweenPage, "🍬 Auto Farm Candys", 55, false, function(enabled)
     State.AutoFarm = enabled
     Notify("Auto Farm", enabled and "Ativado!" or "Desativado!")
 end)
 
-CreateToggle(HalloweenPage, "👁️ ESP Candys", 195, true, function(enabled)
+CreateToggle(HalloweenPage, "👁️ ESP Candys", 90, true, function(enabled)
     State.ESP = enabled
     Notify("ESP", enabled and "Candys visíveis!" or "Desativado!")
 end)
 
--- Dropdown modo teleporte
-CreateDropdown(HalloweenPage, "🎯 Modo Teleporte:", {"Aleatório", "Mais Próximo", "Sequencial"}, 240, function(option)
+CreateDropdown(HalloweenPage, "🎯 Modo Teleporte:", {"Aleatório", "Mais Próximo", "Sequencial"}, 125, function(option)
     if option == "Aleatório" then
         State.TeleportMode = "random"
     elseif option == "Mais Próximo" then
@@ -603,17 +505,16 @@ CreateDropdown(HalloweenPage, "🎯 Modo Teleporte:", {"Aleatório", "Mais Próx
     Notify("Teleporte", "Modo: " .. option)
 end)
 
--- Botão teleportar
 local TeleportButton = CreateElement("TextButton", {
     Parent = HalloweenPage,
     BackgroundColor3 = Settings.Theme.Accent,
     BackgroundTransparency = 0.2,
-    Text = "🎯 TELEPORTAR AGORA",
+    Text = "🎯 TELEPORTAR",
     TextColor3 = Settings.Theme.Text,
-    TextSize = 16,
+    TextSize = IsMobile and 13 or 16,
     Font = Enum.Font.GothamBlack,
-    Position = UDim2.new(0, 0, 0, 300),
-    Size = UDim2.new(0, 280, 0, 40)
+    Position = UDim2.new(0, 0, 0, 170),
+    Size = UDim2.new(0, IsMobile and 240 or 280, 0, 35)
 })
 
 StyleButton(TeleportButton, Settings.Theme.Accent)
@@ -621,28 +522,29 @@ StyleButton(TeleportButton, Settings.Theme.Accent)
 -- ============ PÁGINA PLAYER ============
 CreateSection(PlayerPage, "👤 Player Settings", 0)
 
-CreateToggle(PlayerPage, "🛡️ Anti AFK", 40, false, function(enabled)
+CreateToggle(PlayerPage, "🛡️ Anti AFK", 25, false, function(enabled)
     State.AntiAFK = enabled
     Notify("Anti AFK", enabled and "Ativado!" or "Desativado!")
 end)
 
-CreateToggle(PlayerPage, "🦵 Infinite Jump", 85, false, function(enabled)
+CreateToggle(PlayerPage, "🦵 Infinite Jump", 60, false, function(enabled)
     State.InfiniteJump = enabled
     Notify("Infinite Jump", enabled and "Ativado!" or "Desativado!")
 end)
 
-CreateToggle(PlayerPage, "🚪 Noclip", 130, false, function(enabled)
+CreateToggle(PlayerPage, "🚪 Noclip", 95, false, function(enabled)
     State.Noclip = enabled
     Notify("Noclip", enabled and "Ativado!" or "Desativado!")
 end)
 
--- Sliders Player
-CreateSlider(PlayerPage, "🏃 Velocidade", 175, 16, 100, 16, function(value)
+CreateSlider(PlayerPage, "🏃 Velocidade", 135, 16, 100, 16, function(value)
     State.WalkSpeed = value
-    Humanoid.WalkSpeed = value
+    if State.Speed then
+        Humanoid.WalkSpeed = value
+    end
 end)
 
-CreateSlider(PlayerPage, "🦘 Pulo", 230, 50, 200, 50, function(value)
+CreateSlider(PlayerPage, "🦘 Pulo", 180, 50, 200, 50, function(value)
     State.JumpPower = value
     Humanoid.JumpPower = value
 end)
@@ -650,12 +552,18 @@ end)
 -- ============ PÁGINA MOVIMENTO ============
 CreateSection(MovementPage, "🚀 Movement System", 0)
 
-CreateToggle(MovementPage, "🕊️ Fly Mode", 40, false, function(enabled)
+CreateToggle(MovementPage, "🕊️ Fly Mode", 25, false, function(enabled)
     State.Fly = enabled
+    if enabled then
+        Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+        HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+    else
+        Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
     Notify("Fly", enabled and "Ativado!" or "Desativado!")
 end)
 
-CreateToggle(MovementPage, "⚡ Speed Boost", 85, false, function(enabled)
+CreateToggle(MovementPage, "⚡ Speed Boost", 60, false, function(enabled)
     State.Speed = enabled
     if enabled then
         Humanoid.WalkSpeed = State.WalkSpeed
@@ -665,31 +573,27 @@ CreateToggle(MovementPage, "⚡ Speed Boost", 85, false, function(enabled)
     Notify("Speed", enabled and "Ativado!" or "Desativado!")
 end)
 
--- Slider Fly Speed
-CreateSlider(MovementPage, "🌀 Velocidade Fly", 130, 10, 200, 50, function(value)
+CreateSlider(MovementPage, "🌀 Velocidade Fly", 100, 10, 200, 50, function(value)
     State.FlySpeed = value
 end)
 
 -- ============ PÁGINA VISUAL ============
 CreateSection(VisualPage, "👁️ Visual Features", 0)
 
-CreateToggle(VisualPage, "👥 Player ESP", 40, false, function(enabled)
+CreateToggle(VisualPage, "👥 Player ESP", 25, false, function(enabled)
     State.ESP = enabled
     Notify("Player ESP", enabled and "Ativado!" or "Desativado!")
 end)
 
-CreateToggle(VisualPage, "💀 Name ESP", 85, false, function(enabled)
-    State.NameESP = enabled
-    Notify("Name ESP", enabled and "Ativado!" or "Desativado!")
-end)
-
-CreateToggle(VisualPage, "🔦 Fullbright", 130, false, function(enabled)
+CreateToggle(VisualPage, "🔦 Fullbright", 60, false, function(enabled)
     if enabled then
         Lighting.Brightness = 2
         Lighting.ClockTime = 12
+        Lighting.FogEnd = 100000
     else
         Lighting.Brightness = 1
         Lighting.ClockTime = 14
+        Lighting.FogEnd = 1000
     end
     Notify("Fullbright", enabled and "Ativado!" or "Desativado!")
 end)
@@ -697,34 +601,41 @@ end)
 -- ============ PÁGINA AJUSTES ============
 CreateSection(SettingsPage, "⚙️ Configurações", 0)
 
-CreateToggle(SettingsPage, "🎨 Transparência UI", 40, true, function(enabled)
+-- Seletor de tamanho
+local SizeDropdown = CreateDropdown(SettingsPage, "📏 Tamanho da GUI:", {"Pequeno", "Médio", "Grande", "Extra"}, 25, function(option)
+    local sizeMap = {
+        ["Pequeno"] = "Small",
+        ["Médio"] = "Medium",
+        ["Grande"] = "Large",
+        ["Extra"] = "XLarge"
+    }
+    State.CurrentSize = sizeMap[option]
+    MainFrame:TweenSize(Settings.Sizes[State.CurrentSize], "Out", "Quad", 0.3)
+    MainFrame.Position = UDim2.new(0.5, -Settings.Sizes[State.CurrentSize].X.Offset / 2, 0.5, -Settings.Sizes[State.CurrentSize].Y.Offset / 2)
+    Notify("Tamanho", "GUI: " .. option)
+end)
+
+CreateToggle(SettingsPage, "🎨 Transparência UI", 65, true, function(enabled)
     local target = enabled and Settings.Transparency.Frame or 0
     MainFrame.BackgroundTransparency = target
     Notify("UI", enabled and "Transparente!" or "Opaco!")
 end)
 
-CreateToggle(SettingsPage, "🔊 Sons", 85, true, function(enabled)
-    State.Sounds = enabled
-    Notify("Sons", enabled and "Ativado!" or "Desativado!")
-end)
-
--- Botão reset
 local ResetButton = CreateElement("TextButton", {
     Parent = SettingsPage,
     BackgroundColor3 = Settings.Theme.Danger,
     BackgroundTransparency = 0.2,
-    Text = "🔄 RESETAR CONFIGURAÇÕES",
+    Text = "🔄 RESETAR",
     TextColor3 = Settings.Theme.Text,
-    TextSize = 14,
+    TextSize = IsMobile and 12 or 14,
     Font = Enum.Font.GothamBold,
-    Position = UDim2.new(0, 0, 0, 130),
-    Size = UDim2.new(0, 280, 0, 35)
+    Position = UDim2.new(0, 0, 0, 110),
+    Size = UDim2.new(0, IsMobile and 240 or 280, 0, 30)
 })
 
 StyleButton(ResetButton, Settings.Theme.Danger)
 
 ResetButton.MouseButton1Click:Connect(function()
-    -- Resetar tudo
     Humanoid.WalkSpeed = 16
     Humanoid.JumpPower = 50
     State.Fly = false
@@ -737,71 +648,96 @@ end)
 
 -- Sistema de Tabs
 local function SwitchTab(tabName)
-    for name, tab in pairs(Tabs) do
-        if name == tabName then
-            tab.BackgroundColor3 = Settings.Theme.Accent
-            tab.BackgroundTransparency = 0.2
-        else
-            tab.BackgroundColor3 = Settings.Theme.Secondary
-            tab.BackgroundTransparency = 0.3
-        end
+    for _, tab in pairs(Tabs) do
+        tab.BackgroundColor3 = Settings.Theme.Secondary
+        tab.BackgroundTransparency = 0.3
     end
     
-    HalloweenPage.Visible = (tabName == "Halloween")
+    Tabs[tabName].BackgroundColor3 = Settings.Theme.Accent
+    Tabs[tabName].BackgroundTransparency = 0.2
+    
+    HalloweenPage.Visible = (tabName == "Evento")
     PlayerPage.Visible = (tabName == "Player")
-    MovementPage.Visible = (tabName == "Movement")
+    MovementPage.Visible = (tabName == "Movimento")
     VisualPage.Visible = (tabName == "Visual")
-    SettingsPage.Visible = (tabName == "Settings")
+    SettingsPage.Visible = (tabName == "Ajustes")
 end
 
 -- Conectar Tabs
-Tabs.Halloween.MouseButton1Click:Connect(function() SwitchTab("Halloween") end)
-Tabs.Player.MouseButton1Click:Connect(function() SwitchTab("Player") end)
-Tabs.Movement.MouseButton1Click:Connect(function() SwitchTab("Movement") end)
-Tabs.Visual.MouseButton1Click:Connect(function() SwitchTab("Visual") end)
-Tabs.Settings.MouseButton1Click:Connect(function() SwitchTab("Settings") end)
+Tabs["Evento"].MouseButton1Click:Connect(function() SwitchTab("Evento") end)
+Tabs["Player"].MouseButton1Click:Connect(function() SwitchTab("Player") end)
+Tabs["Movimento"].MouseButton1Click:Connect(function() SwitchTab("Movimento") end)
+Tabs["Visual"].MouseButton1Click:Connect(function() SwitchTab("Visual") end)
+Tabs["Ajustes"].MouseButton1Click:Connect(function() SwitchTab("Ajustes") end)
 
--- Botão fechar
 CloseButton.MouseButton1Click:Connect(function()
     MainGui:Destroy()
     NotificationHolder:Destroy()
 end)
 
--- ============ SISTEMAS ============
+-- ============ SISTEMAS CORRIGIDOS ============
 
--- Sistema Fly
-RunService.RenderStepped:Connect(function()
-    if State.Fly and HumanoidRootPart then
-        local camera = workspace.CurrentCamera
-        local moveDirection = Vector3.new()
-        
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveDirection = moveDirection + camera.CFrame.LookVector
+-- Sistema Fly CORRIGIDO
+local flyConnection
+local function StartFly()
+    if flyConnection then flyConnection:Disconnect() end
+    
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if State.Fly and HumanoidRootPart then
+            Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+            
+            local camera = workspace.CurrentCamera
+            local moveDirection = Vector3.new()
+            
+            -- Teclado
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                moveDirection = moveDirection + camera.CFrame.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                moveDirection = moveDirection - camera.CFrame.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                moveDirection = moveDirection - camera.CFrame.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                moveDirection = moveDirection + camera.CFrame.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                moveDirection = moveDirection + Vector3.new(0, 1, 0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                moveDirection = moveDirection - Vector3.new(0, 1, 0)
+            end
+            
+            -- Mobile touch controls
+            if IsMobile then
+                -- Botões virtuais para mobile
+                local touch = UserInputService:GetTouchInputs()
+                for _, input in ipairs(touch) do
+                    local position = input.Position
+                    local screenSize = workspace.Camera.ViewportSize
+                    
+                    -- Metade direita da tela para movimento
+                    if position.X > screenSize.X / 2 then
+                        -- Metade superior direita = subir
+                        if position.Y < screenSize.Y / 2 then
+                            moveDirection = moveDirection + Vector3.new(0, 1, 0)
+                        else
+                            moveDirection = moveDirection - Vector3.new(0, 1, 0)
+                        end
+                    end
+                end
+            end
+            
+            if moveDirection.Magnitude > 0 then
+                moveDirection = moveDirection.Unit * State.FlySpeed
+                HumanoidRootPart.Velocity = moveDirection
+            else
+                HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+            end
         end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveDirection = moveDirection - camera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveDirection = moveDirection - camera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveDirection = moveDirection + camera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveDirection = moveDirection + Vector3.new(0, 1, 0)
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-            moveDirection = moveDirection - Vector3.new(0, 1, 0)
-        end
-        
-        if moveDirection.Magnitude > 0 then
-            moveDirection = moveDirection.Unit * State.FlySpeed
-            HumanoidRootPart.Velocity = moveDirection
-        else
-            HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
-        end
-    end
-end)
+    end)
+end
 
 -- Sistema Infinite Jump
 UserInputService.JumpRequest:Connect(function()
@@ -829,41 +765,6 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Sistema ESP
-local espConnections = {}
-local function UpdateESP()
-    -- Limpar ESP existente
-    for _, connection in pairs(espConnections) do
-        connection:Disconnect()
-    end
-    espConnections = {}
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local esp = Instance.new("BillboardGui")
-            esp.Name = "PlayerESP"
-            esp.Size = UDim2.new(0, 100, 0, 30)
-            esp.StudsOffset = Vector3.new(0, 3, 0)
-            esp.AlwaysOnTop = true
-            esp.Parent = player.Character
-            
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, 0, 1, 0)
-            label.BackgroundTransparency = 1
-            label.Text = player.Name
-            label.TextColor3 = Settings.Theme.Accent
-            label.TextSize = 14
-            label.Font = Enum.Font.GothamBold
-            label.Parent = esp
-            
-            local connection = player.CharacterAdded:Connect(function()
-                esp:Destroy()
-            end)
-            table.insert(espConnections, connection)
-        end
-    end
-end
-
 -- Sistema Auto Farm Candys
 local function FindCandys()
     local candys = {}
@@ -875,10 +776,10 @@ local function FindCandys()
     return candys
 end
 
--- Loop principal Auto Farm
+-- Loop Auto Farm
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(0.5)
         if State.AutoFarm then
             local candys = FindCandys()
             CandyCounter.Text = "🍬 Candys: " .. #candys
@@ -897,7 +798,7 @@ task.spawn(function()
                             targetCandy = candy
                         end
                     end
-                else -- sequential
+                else
                     targetCandy = candys[1]
                 end
                 
@@ -909,19 +810,27 @@ task.spawn(function()
     end
 end)
 
--- Atualizar ESP periodicamente
-task.spawn(function()
-    while true do
-        task.wait(5)
-        if State.ESP then
-            UpdateESP()
-        end
+-- Botão Teleportar
+TeleportButton.MouseButton1Click:Connect(function()
+    local candys = FindCandys()
+    if #candys > 0 then
+        local targetCandy = candys[math.random(1, #candys)]
+        HumanoidRootPart.CFrame = CFrame.new(targetCandy.Position + Vector3.new(0, 5, 0))
+        Notify("Teleporte", "Teleportado para candy!")
+    else
+        Notify("Teleporte", "Nenhum candy encontrado!")
     end
 end)
 
--- Iniciar com a primeira tab
-SwitchTab("Halloween")
+-- Iniciar fly
+StartFly()
 
--- Mensagem de sucesso
-print("🎃 Halloween Hub V2 carregado com sucesso!")
-Notify("Bem-vindo!", "Halloween Hub V2 carregado!", 5)
+-- Iniciar com primeira tab
+SwitchTab("Evento")
+
+-- Ajustar posição inicial baseado no tamanho
+MainFrame.Position = UDim2.new(0.5, -Settings.Sizes[State.CurrentSize].X.Offset / 2, 0.5, -Settings.Sizes[State.CurrentSize].Y.Offset / 2)
+
+-- Mensagem
+print("🎃 Halloween Hub V3 carregado!")
+Notify("Bem-vindo!", "Halloween Hub V3 otimizado para " .. (IsMobile and "Mobile" or "PC") .. "!", 4)
