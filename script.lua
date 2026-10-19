@@ -1,22 +1,4 @@
---[[
-    Script: Halloween Hub V4 - Horizontal Layout
-    Executor: Delta
-    Versão: 4.0
-]]
-
--- Configurações
-local Settings = {
-    Theme = {
-        Primary = Color3.fromRGB(20, 8, 8),
-        Secondary = Color3.fromRGB(35, 12, 12),
-        Accent = Color3.fromRGB(255, 140, 0),
-        Success = Color3.fromRGB(0, 180, 80),
-        Danger = Color3.fromRGB(200, 50, 50),
-        Text = Color3.fromRGB(255, 255, 255)
-    }
-}
-
--- Serviços
+-- Halloween Hub - Versão Compacta
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -27,9 +9,6 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-
--- Detectar Mobile
-local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 -- Estado
 local State = {
@@ -47,33 +26,29 @@ local State = {
     CurrentTab = "Evento"
 }
 
--- GUI Principal
+-- GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "HalloweenHubV4"
+ScreenGui.Name = "HalloweenHub"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- Frame Principal - HORIZONTAL
+-- Frame Principal (Compacto)
 local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Settings.Theme.Primary
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.5, -IsMobile and -200 or -300, 0.5, -IsMobile and -150 or -200)
-MainFrame.Size = UDim2.new(0, IsMobile and 400 or 600, 0, IsMobile and 300 or 400)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -150)
+MainFrame.Size = UDim2.new(0, 500, 0, 300)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
--- Corner
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 15)
+MainCorner.CornerRadius = UDim.new(0, 12)
 MainCorner.Parent = MainFrame
 
--- Stroke
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Settings.Theme.Accent
+MainStroke.Color = Color3.fromRGB(255, 140, 0)
 MainStroke.Thickness = 2
 MainStroke.Transparency = 0.3
 MainStroke.Parent = MainFrame
@@ -82,48 +57,48 @@ MainStroke.Parent = MainFrame
 local Header = Instance.new("Frame")
 Header.Parent = MainFrame
 Header.BackgroundTransparency = 1
-Header.Position = UDim2.new(0, 10, 0, 5)
-Header.Size = UDim2.new(1, -20, 0, 30)
+Header.Position = UDim2.new(0, 8, 0, 4)
+Header.Size = UDim2.new(1, -16, 0, 25)
 
 local Title = Instance.new("TextLabel")
 Title.Parent = Header
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBlack
 Title.Text = "🎃 HALLOWEEN HUB"
-Title.TextColor3 = Settings.Theme.Accent
-Title.TextSize = IsMobile and 16 or 20
+Title.TextColor3 = Color3.fromRGB(255, 140, 0)
+Title.TextSize = 16
 Title.Position = UDim2.new(0, 0, 0, 0)
-Title.Size = UDim2.new(0, 200, 1, 0)
+Title.Size = UDim2.new(0, 180, 1, 0)
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Parent = Header
-CloseBtn.BackgroundColor3 = Settings.Theme.Danger
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 CloseBtn.BackgroundTransparency = 0.3
 CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Settings.Theme.Text
-CloseBtn.TextSize = 14
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 12
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Position = UDim2.new(1, -30, 0, 0)
-CloseBtn.Size = UDim2.new(0, 25, 0, 25)
+CloseBtn.Position = UDim2.new(1, -25, 0, 0)
+CloseBtn.Size = UDim2.new(0, 20, 0, 20)
 
 local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.CornerRadius = UDim.new(0, 5)
 CloseCorner.Parent = CloseBtn
 
--- Tabs - HORIZONTAL
+-- Tabs (Horizontal Compacto)
 local TabBar = Instance.new("Frame")
 TabBar.Parent = MainFrame
 TabBar.BackgroundTransparency = 1
-TabBar.Position = UDim2.new(0, 10, 0, 40)
-TabBar.Size = UDim2.new(1, -20, 0, 30)
+TabBar.Position = UDim2.new(0, 8, 0, 32)
+TabBar.Size = UDim2.new(1, -16, 0, 25)
 
 local TabData = {
-    {"🎃 Evento", "Evento"},
-    {"👤 Player", "Player"},
-    {"🚀 Fly", "Fly"},
-    {"👁️ Visual", "Visual"},
-    {"⚙️ Ajustes", "Ajustes"}
+    {"🎃", "Evento"},
+    {"👤", "Player"},
+    {"🚀", "Fly"},
+    {"👁️", "Visual"},
+    {"⚙️", "Ajustes"}
 }
 
 local Tabs = {}
@@ -133,16 +108,16 @@ for i, tabData in ipairs(TabData) do
     tab.Parent = TabBar
     tab.Name = tabData[2]
     tab.Text = tabData[1]
-    tab.BackgroundColor3 = i == 1 and Settings.Theme.Accent or Settings.Theme.Secondary
+    tab.BackgroundColor3 = i == 1 and Color3.fromRGB(255, 140, 0) or Color3.fromRGB(35, 12, 12)
     tab.BackgroundTransparency = 0.3
-    tab.TextColor3 = Settings.Theme.Text
-    tab.TextSize = IsMobile and 10 or 12
+    tab.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tab.TextSize = 12
     tab.Font = Enum.Font.GothamBold
     tab.Position = UDim2.new((i - 1) * 0.2, 2, 0, 0)
     tab.Size = UDim2.new(0.2, -4, 1, 0)
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
+    corner.CornerRadius = UDim.new(0, 4)
     corner.Parent = tab
     
     Tabs[tabData[2]] = tab
@@ -152,43 +127,43 @@ end
 local Container = Instance.new("Frame")
 Container.Parent = MainFrame
 Container.BackgroundTransparency = 1
-Container.Position = UDim2.new(0, 10, 0, 75)
-Container.Size = UDim2.new(1, -20, 1, -85)
+Container.Position = UDim2.new(0, 8, 0, 62)
+Container.Size = UDim2.new(1, -16, 1, -70)
 
--- Função para criar páginas
+-- Criar páginas
+local Pages = {}
+
 local function CreatePage()
     local page = Instance.new("Frame")
     page.Parent = Container
     page.BackgroundTransparency = 1
     page.Size = UDim2.new(1, 0, 1, 0)
     page.Visible = false
+    Pages[#Pages + 1] = page
     return page
 end
 
--- Criar páginas
-local Pages = {
-    Evento = CreatePage(),
-    Player = CreatePage(),
-    Fly = CreatePage(),
-    Visual = CreatePage(),
-    Ajustes = CreatePage()
-}
+local EventoPage = CreatePage()
+local PlayerPage = CreatePage()
+local FlyPage = CreatePage()
+local VisualPage = CreatePage()
+local AjustesPage = CreatePage()
 
--- Função para criar toggle
+-- Função Toggle Compacta
 local function CreateToggle(parent, title, yPos, default, callback)
     local toggle = Instance.new("TextButton")
     toggle.Parent = parent
-    toggle.BackgroundColor3 = default and Settings.Theme.Success or Settings.Theme.Secondary
+    toggle.BackgroundColor3 = default and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(35, 12, 12)
     toggle.BackgroundTransparency = 0.3
     toggle.Text = title .. " [ " .. (default and "ON" or "OFF") .. " ]"
-    toggle.TextColor3 = Settings.Theme.Text
-    toggle.TextSize = IsMobile and 10 or 13
+    toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggle.TextSize = 11
     toggle.Font = Enum.Font.GothamMedium
     toggle.Position = UDim2.new(0, 0, 0, yPos)
-    toggle.Size = UDim2.new(1, -10, 0, IsMobile and 25 or 30)
+    toggle.Size = UDim2.new(1, -10, 0, 22)
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
+    corner.CornerRadius = UDim.new(0, 5)
     corner.Parent = toggle
     
     local enabled = default
@@ -196,53 +171,52 @@ local function CreateToggle(parent, title, yPos, default, callback)
     toggle.MouseButton1Click:Connect(function()
         enabled = not enabled
         toggle.Text = title .. " [ " .. (enabled and "ON" or "OFF") .. " ]"
-        toggle.BackgroundColor3 = enabled and Settings.Theme.Success or Settings.Theme.Secondary
+        toggle.BackgroundColor3 = enabled and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(35, 12, 12)
         if callback then callback(enabled) end
     end)
     
     return toggle
 end
 
--- Função para criar slider
+-- Função Slider Compacta
 local function CreateSlider(parent, title, yPos, min, max, default, callback)
     local container = Instance.new("Frame")
     container.Parent = parent
     container.BackgroundTransparency = 1
     container.Position = UDim2.new(0, 0, 0, yPos)
-    container.Size = UDim2.new(1, -10, 0, IsMobile and 30 or 35)
+    container.Size = UDim2.new(1, -10, 0, 28)
     
     local label = Instance.new("TextLabel")
     label.Parent = container
     label.BackgroundTransparency = 1
     label.Font = Enum.Font.GothamMedium
     label.Text = title .. ": " .. math.floor(default)
-    label.TextColor3 = Settings.Theme.Text
-    label.TextSize = IsMobile and 10 or 12
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 10
     label.Position = UDim2.new(0, 0, 0, 0)
-    label.Size = UDim2.new(1, 0, 0, 15)
+    label.Size = UDim2.new(1, 0, 0, 12)
     label.TextXAlignment = Enum.TextXAlignment.Left
     
     local sliderBg = Instance.new("Frame")
     sliderBg.Parent = container
-    sliderBg.BackgroundColor3 = Settings.Theme.Secondary
+    sliderBg.BackgroundColor3 = Color3.fromRGB(35, 12, 12)
     sliderBg.BackgroundTransparency = 0.3
-    sliderBg.Position = UDim2.new(0, 0, 0, 17)
-    sliderBg.Size = UDim2.new(1, 0, 0, 8)
+    sliderBg.Position = UDim2.new(0, 0, 0, 14)
+    sliderBg.Size = UDim2.new(1, 0, 0, 6)
     
     local sliderCorner = Instance.new("UICorner")
-    sliderCorner.CornerRadius = UDim.new(0, 4)
+    sliderCorner.CornerRadius = UDim.new(0, 3)
     sliderCorner.Parent = sliderBg
     
     local fill = Instance.new("Frame")
     fill.Parent = sliderBg
-    fill.BackgroundColor3 = Settings.Theme.Accent
+    fill.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
     fill.BackgroundTransparency = 0.2
     fill.BorderSizePixel = 0
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     
     local value = default
     
-    -- Slider funcional
     sliderBg.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local connection
@@ -268,38 +242,38 @@ local function CreateSlider(parent, title, yPos, min, max, default, callback)
     return container
 end
 
--- Função para criar dropdown
+-- Função Dropdown Compacta
 local function CreateDropdown(parent, title, options, yPos, callback)
     local container = Instance.new("Frame")
     container.Parent = parent
     container.BackgroundTransparency = 1
     container.Position = UDim2.new(0, 0, 0, yPos)
-    container.Size = UDim2.new(1, -10, 0, IsMobile and 25 or 30)
+    container.Size = UDim2.new(1, -10, 0, 25)
     
     local label = Instance.new("TextLabel")
     label.Parent = container
     label.BackgroundTransparency = 1
     label.Font = Enum.Font.GothamMedium
     label.Text = title
-    label.TextColor3 = Settings.Theme.Text
-    label.TextSize = IsMobile and 10 or 12
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 10
     label.Position = UDim2.new(0, 0, 0, 0)
     label.Size = UDim2.new(0.4, 0, 1, 0)
     label.TextXAlignment = Enum.TextXAlignment.Left
     
     local dropdown = Instance.new("TextButton")
     dropdown.Parent = container
-    dropdown.BackgroundColor3 = Settings.Theme.Secondary
+    dropdown.BackgroundColor3 = Color3.fromRGB(35, 12, 12)
     dropdown.BackgroundTransparency = 0.3
     dropdown.Text = options[1]
-    dropdown.TextColor3 = Settings.Theme.Text
-    dropdown.TextSize = IsMobile and 10 or 12
+    dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+    dropdown.TextSize = 10
     dropdown.Font = Enum.Font.GothamMedium
     dropdown.Position = UDim2.new(0.4, 5, 0, 0)
     dropdown.Size = UDim2.new(0.6, -5, 1, 0)
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
+    corner.CornerRadius = UDim.new(0, 4)
     corner.Parent = dropdown
     
     dropdown.MouseButton1Click:Connect(function()
@@ -318,27 +292,27 @@ local function CreateDropdown(parent, title, options, yPos, callback)
     return container
 end
 
--- ============ PÁGINA EVENTO ============
+-- ===== PÁGINA EVENTO =====
 local CandyCounter = Instance.new("TextLabel")
-CandyCounter.Parent = Pages.Evento
+CandyCounter.Parent = EventoPage
 CandyCounter.BackgroundTransparency = 1
 CandyCounter.Font = Enum.Font.GothamBlack
 CandyCounter.Text = "🍬 Candys: 0"
-CandyCounter.TextColor3 = Settings.Theme.Accent
-CandyCounter.TextSize = IsMobile and 14 or 18
+CandyCounter.TextColor3 = Color3.fromRGB(255, 140, 0)
+CandyCounter.TextSize = 14
 CandyCounter.Position = UDim2.new(0, 0, 0, 0)
-CandyCounter.Size = UDim2.new(1, -10, 0, 25)
+CandyCounter.Size = UDim2.new(1, -10, 0, 20)
 CandyCounter.TextXAlignment = Enum.TextXAlignment.Left
 
-CreateToggle(Pages.Evento, "🍬 Auto Farm", 30, false, function(enabled)
+CreateToggle(EventoPage, "🍬 Auto Farm", 22, false, function(enabled)
     State.AutoFarm = enabled
 end)
 
-CreateToggle(Pages.Evento, "👁️ ESP", 65, true, function(enabled)
+CreateToggle(EventoPage, "👁️ ESP", 48, true, function(enabled)
     State.ESP = enabled
 end)
 
-CreateDropdown(Pages.Evento, "Modo:", {"Aleatório", "Próximo", "Sequencial"}, 100, function(option)
+CreateDropdown(EventoPage, "Modo:", {"Aleatório", "Próximo", "Sequencial"}, 74, function(option)
     if option == "Aleatório" then
         State.TeleportMode = "random"
     elseif option == "Próximo" then
@@ -349,47 +323,47 @@ CreateDropdown(Pages.Evento, "Modo:", {"Aleatório", "Próximo", "Sequencial"}, 
 end)
 
 local TeleportBtn = Instance.new("TextButton")
-TeleportBtn.Parent = Pages.Evento
-TeleportBtn.BackgroundColor3 = Settings.Theme.Accent
+TeleportBtn.Parent = EventoPage
+TeleportBtn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
 TeleportBtn.BackgroundTransparency = 0.2
 TeleportBtn.Text = "🎯 TELEPORTAR"
-TeleportBtn.TextColor3 = Settings.Theme.Text
-TeleportBtn.TextSize = IsMobile and 12 or 14
+TeleportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeleportBtn.TextSize = 12
 TeleportBtn.Font = Enum.Font.GothamBlack
-TeleportBtn.Position = UDim2.new(0, 0, 0, 140)
-TeleportBtn.Size = UDim2.new(1, -10, 0, IsMobile and 30 or 35)
+TeleportBtn.Position = UDim2.new(0, 0, 0, 102)
+TeleportBtn.Size = UDim2.new(1, -10, 0, 28)
 
 local TeleportCorner = Instance.new("UICorner")
-TeleportCorner.CornerRadius = UDim.new(0, 6)
+TeleportCorner.CornerRadius = UDim.new(0, 5)
 TeleportCorner.Parent = TeleportBtn
 
--- ============ PÁGINA PLAYER ============
-CreateToggle(Pages.Player, "🛡️ Anti AFK", 0, false, function(enabled)
+-- ===== PÁGINA PLAYER =====
+CreateToggle(PlayerPage, "🛡️ Anti AFK", 0, false, function(enabled)
     State.AntiAFK = enabled
 end)
 
-CreateToggle(Pages.Player, "🦵 Inf Jump", 35, false, function(enabled)
+CreateToggle(PlayerPage, "🦵 Inf Jump", 26, false, function(enabled)
     State.InfiniteJump = enabled
 end)
 
-CreateToggle(Pages.Player, "🚪 Noclip", 70, false, function(enabled)
+CreateToggle(PlayerPage, "🚪 Noclip", 52, false, function(enabled)
     State.Noclip = enabled
 end)
 
-CreateSlider(Pages.Player, "Velocidade", 105, 16, 100, 16, function(value)
+CreateSlider(PlayerPage, "Velocidade", 78, 16, 100, 16, function(value)
     State.WalkSpeed = value
     if State.Speed then
         Humanoid.WalkSpeed = value
     end
 end)
 
-CreateSlider(Pages.Player, "Pulo", 145, 50, 200, 50, function(value)
+CreateSlider(PlayerPage, "Pulo", 110, 50, 200, 50, function(value)
     State.JumpPower = value
     Humanoid.JumpPower = value
 end)
 
--- ============ PÁGINA FLY ============
-CreateToggle(Pages.Fly, "🕊️ Fly Mode", 0, false, function(enabled)
+-- ===== PÁGINA FLY =====
+CreateToggle(FlyPage, "🕊️ Fly Mode", 0, false, function(enabled)
     State.Fly = enabled
     if enabled then
         Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
@@ -398,7 +372,7 @@ CreateToggle(Pages.Fly, "🕊️ Fly Mode", 0, false, function(enabled)
     end
 end)
 
-CreateToggle(Pages.Fly, "⚡ Speed Boost", 35, false, function(enabled)
+CreateToggle(FlyPage, "⚡ Speed Boost", 26, false, function(enabled)
     State.Speed = enabled
     if enabled then
         Humanoid.WalkSpeed = State.WalkSpeed
@@ -407,16 +381,16 @@ CreateToggle(Pages.Fly, "⚡ Speed Boost", 35, false, function(enabled)
     end
 end)
 
-CreateSlider(Pages.Fly, "Fly Speed", 70, 10, 200, 50, function(value)
+CreateSlider(FlyPage, "Fly Speed", 52, 10, 200, 50, function(value)
     State.FlySpeed = value
 end)
 
--- ============ PÁGINA VISUAL ============
-CreateToggle(Pages.Visual, "👥 Player ESP", 0, false, function(enabled)
+-- ===== PÁGINA VISUAL =====
+CreateToggle(VisualPage, "👥 Player ESP", 0, false, function(enabled)
     State.ESP = enabled
 end)
 
-CreateToggle(Pages.Visual, "🔦 Fullbright", 35, false, function(enabled)
+CreateToggle(VisualPage, "🔦 Fullbright", 26, false, function(enabled)
     if enabled then
         Lighting.Brightness = 2
         Lighting.ClockTime = 12
@@ -426,33 +400,35 @@ CreateToggle(Pages.Visual, "🔦 Fullbright", 35, false, function(enabled)
     end
 end)
 
--- ============ PÁGINA AJUSTES ============
-CreateDropdown(Pages.Ajustes, "Tamanho:", {"Pequeno", "Médio", "Grande"}, 0, function(option)
+-- ===== PÁGINA AJUSTES =====
+-- Dropdown de Tamanho
+CreateDropdown(AjustesPage, "Tamanho:", {"Mini", "Pequeno", "Médio", "Grande"}, 0, function(option)
     local sizes = {
-        ["Pequeno"] = UDim2.new(0, IsMobile and 300 or 400, 0, IsMobile and 250 or 300),
-        ["Médio"] = UDim2.new(0, IsMobile and 400 or 500, 0, IsMobile and 300 or 350),
-        ["Grande"] = UDim2.new(0, IsMobile and 500 or 600, 0, IsMobile and 350 or 400)
+        ["Mini"] = UDim2.new(0, 350, 0, 250),
+        ["Pequeno"] = UDim2.new(0, 400, 0, 280),
+        ["Médio"] = UDim2.new(0, 500, 0, 300),
+        ["Grande"] = UDim2.new(0, 600, 0, 350)
     }
     MainFrame:TweenSize(sizes[option], "Out", "Quad", 0.3)
 end)
 
-CreateToggle(Pages.Ajustes, "🎨 Transparência", 35, true, function(enabled)
+CreateToggle(AjustesPage, "🎨 Transparência", 30, true, function(enabled)
     MainFrame.BackgroundTransparency = enabled and 0.1 or 0
 end)
 
 local ResetBtn = Instance.new("TextButton")
-ResetBtn.Parent = Pages.Ajustes
-ResetBtn.BackgroundColor3 = Settings.Theme.Danger
+ResetBtn.Parent = AjustesPage
+ResetBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 ResetBtn.BackgroundTransparency = 0.2
 ResetBtn.Text = "🔄 RESETAR"
-ResetBtn.TextColor3 = Settings.Theme.Text
-ResetBtn.TextSize = IsMobile and 12 or 14
+ResetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResetBtn.TextSize = 12
 ResetBtn.Font = Enum.Font.GothamBold
-ResetBtn.Position = UDim2.new(0, 0, 0, 70)
-ResetBtn.Size = UDim2.new(1, -10, 0, IsMobile and 30 or 35)
+ResetBtn.Position = UDim2.new(0, 0, 0, 60)
+ResetBtn.Size = UDim2.new(1, -10, 0, 28)
 
 local ResetCorner = Instance.new("UICorner")
-ResetCorner.CornerRadius = UDim.new(0, 6)
+ResetCorner.CornerRadius = UDim.new(0, 5)
 ResetCorner.Parent = ResetBtn
 
 ResetBtn.MouseButton1Click:Connect(function()
@@ -470,16 +446,18 @@ local function SwitchTab(tabName)
     State.CurrentTab = tabName
     
     for name, tab in pairs(Tabs) do
-        tab.BackgroundColor3 = Settings.Theme.Secondary
+        tab.BackgroundColor3 = Color3.fromRGB(35, 12, 12)
         tab.BackgroundTransparency = 0.3
     end
     
-    Tabs[tabName].BackgroundColor3 = Settings.Theme.Accent
+    Tabs[tabName].BackgroundColor3 = Color3.fromRGB(255, 140, 0)
     Tabs[tabName].BackgroundTransparency = 0.2
     
-    for name, page in pairs(Pages) do
-        page.Visible = (name == tabName)
-    end
+    EventoPage.Visible = (tabName == "Evento")
+    PlayerPage.Visible = (tabName == "Player")
+    FlyPage.Visible = (tabName == "Fly")
+    VisualPage.Visible = (tabName == "Visual")
+    AjustesPage.Visible = (tabName == "Ajustes")
 end
 
 -- Conectar Tabs
@@ -493,7 +471,7 @@ CloseBtn.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
--- ============ SISTEMAS ============
+-- ===== SISTEMAS =====
 
 -- Fly System
 RunService.RenderStepped:Connect(function()
@@ -611,4 +589,4 @@ end)
 
 -- Iniciar
 SwitchTab("Evento")
-print("🎃 Halloween Hub V4 carregado!")
+print("🎃 Halloween Hub Compacto carregado!")
