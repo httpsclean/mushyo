@@ -1,5 +1,5 @@
 -- Halloween Hub - VERSÃO CORRIGIDA ✅
--- CORRIGIDO: Sliders de Speed/Jump | ESP | Auto Collect Candy
+-- CORRIGIDO: Sliders de Speed/Jump | ESP Candy (self-healing) | Player ESP clean
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -22,7 +22,6 @@ local State = {
     Noclip = false,
     InfiniteJump = false,
     AutoFarm = false,
-    AutoCollect = true, -- FIX: era false mas o toggle já mostra ON (estado inicial tem que bater com a UI)
     TeleportMode = "random",
     FlySpeed = 50,
     WalkSpeed = 16,
@@ -360,10 +359,6 @@ CreateToggle(EventoPage, "🍬 Auto Farm", false, function(enabled)
     State.AutoFarm = enabled
 end)
 
-CreateToggle(EventoPage, "🧲 Auto Collect (Fica em cima)", true, function(enabled)
-    State.AutoCollect = enabled
-end)
-
 CreateToggle(EventoPage, "👁️ ESP Candy", true, function(enabled)
     State.ESP = enabled
     if not enabled then ClearAllESP() end
@@ -388,7 +383,7 @@ local InfoLabel = Instance.new("TextLabel")
 InfoLabel.Parent = EventoPage
 InfoLabel.BackgroundTransparency = 1
 InfoLabel.Font = Enum.Font.Gotham
-InfoLabel.Text = "Dica: Deixe Auto Farm + Auto Collect ON"
+InfoLabel.Text = "Dica: Auto Farm teleporta e coleta no toque. Modo Próximo = rota otimizada"
 InfoLabel.TextColor3 = Color3.fromRGB(200,200,200)
 InfoLabel.TextSize = 9
 InfoLabel.Size = UDim2.new(1,-10,0,14)
@@ -518,7 +513,6 @@ CreateButton(AjustesPage, "🔄 RESETAR TUDO", Color3.fromRGB(200, 50, 50), func
     State.InfiniteJump = false
     State.AntiAFK = false
     State.AutoFarm = false
-    State.AutoCollect = false
     Humanoid.WalkSpeed = 16
     Humanoid.UseJumpPower = true
     Humanoid.JumpPower = 50
@@ -644,124 +638,153 @@ local function FindCandys()
     return candys
 end
 
--- ESP SYSTEM PARA CANDYS ✅
-local ESPFolder = Instance.new("Folder")
-ESPFolder.Name = "CandyESP"
-ESPFolder.Parent = workspace
-
-local activeESPs = {}
+-- ESP SYSTEM PARA CANDYS ✅ (self-healing: filho do candy → some com ele,
+-- e recria sozinho se o jogo destruir; nada de pasta externa frágil)
+local legacyESP = workspace:FindFirstChild("CandyESP")
+if legacyESP then legacyESP:Destroy() end -- remove pasta da versão antiga
 
 function ClearAllESP() -- atribui à variável local declarada acima (não é uma local nova)
-    for _,v in ipairs(ESPFolder:GetChildren()) do v:Destroy() end
-    activeESPs = {}
+    for _, candy in ipairs(FindCandys()) do
+        local hl = candy:FindFirstChild("CandyHighlight")
+        if hl then hl:Destroy() end
+        local bb = candy:FindFirstChild("CandyBillboard")
+        if bb then bb:Destroy() end
+    end
 end
 
-local function CreateCandyESP(candyPart)
-    if activeESPs[candyPart] then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Parent = ESPFolder
-    highlight.Adornee = candyPart.Parent:IsA("Model") and candyPart.Parent or candyPart
-    highlight.FillColor = Color3.fromRGB(255, 140, 0)
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    
-    local billboard = Instance.new("BillboardGui")
-    billboard.Parent = candyPart
-    billboard.Name = "CandyBillboard"
-    billboard.Size = UDim2.new(0, 80, 0, 30)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
-    billboard.AlwaysOnTop = true
-    
-    local label = Instance.new("TextLabel")
-    label.Parent = billboard
-    label.Size = UDim2.new(1,0,1,0)
-    label.BackgroundColor3 = Color3.fromRGB(20,8,8)
-    label.BackgroundTransparency = 0.2
-    label.Text = "🍬 CANDY"
-    label.TextColor3 = Color3.fromRGB(255,140,0)
-    label.TextScaled = true
-    label.Font = Enum.Font.GothamBold
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0,4)
-    corner.Parent = label
-    
-    activeESPs[candyPart] = {highlight, billboard}
+local function EnsureCandyESP(candyPart)
+    if not candyPart.Parent then return end
+    local adornee = (candyPart.Parent:IsA("Model") and candyPart.Parent) or candyPart
+
+    -- Highlight: recria se o jogo derrubou ou se era o estilo antigo
+    local hl = candyPart:FindFirstChild("CandyHighlight")
+    if hl and hl.FillTransparency ~= 0.5 then hl:Destroy() hl = nil end
+    if not hl then
+        hl = Instance.new("Highlight")
+        hl.Name = "CandyHighlight"
+        hl.Parent = candyPart
+        hl.Adornee = adornee
+        hl.FillColor = Color3.fromRGB(255, 140, 0)
+        hl.OutlineColor = Color3.fromRGB(255, 255, 0)
+        hl.FillTransparency = 0.5
+        hl.OutlineTransparency = 0
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    end
+
+    -- Billboard com distância: recria se faltar ou for estilo antigo
+    local bb = candyPart:FindFirstChild("CandyBillboard")
+    if bb and not bb:FindFirstChild("TagLabel") then bb:Destroy() bb = nil end
+    if not bb then
+        bb = Instance.new("BillboardGui")
+        bb.Name = "CandyBillboard"
+        bb.Parent = candyPart
+        bb.Size = UDim2.fromOffset(90, 16)
+        bb.StudsOffset = Vector3.new(0, 3, 0)
+        bb.AlwaysOnTop = true
+        local label = Instance.new("TextLabel")
+        label.Name = "TagLabel"
+        label.Parent = bb
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = "🍬"
+        label.TextColor3 = Color3.fromRGB(255, 200, 80)
+        label.TextStrokeTransparency = 0.4
+        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        label.TextSize = 11 -- FIXO: não escala com distância
+        label.Font = Enum.Font.GothamBold
+    end
 end
 
 local function UpdateESP()
     if not State.ESP then return end
-    local candys = FindCandys()
+    local ok, candys = pcall(FindCandys)
+    if not ok or type(candys) ~= "table" then return end
     for _, candy in ipairs(candys) do
-        if not activeESPs[candy] then CreateCandyESP(candy) end
-        -- atualiza distância
-        local billboard = candy:FindFirstChild("CandyBillboard")
-        if billboard and HumanoidRootPart then
+        -- pcall por candy: um candy problemático não derruba o ESP dos outros
+        pcall(EnsureCandyESP, candy)
+        local bb = candy:FindFirstChild("CandyBillboard")
+        local label = bb and bb:FindFirstChild("TagLabel")
+        if label and HumanoidRootPart and HumanoidRootPart.Parent then
             local dist = (candy.Position - HumanoidRootPart.Position).Magnitude
-            billboard:FindFirstChildOfClass("TextLabel").Text = "🍬 " .. math.floor(dist) .. " studs"
+            label.Text = "🍬 " .. math.floor(dist)
         end
     end
-    -- limpa ESP de candys que sumiram
-    for part, objs in pairs(activeESPs) do
-        if not part.Parent then
-            for _,o in ipairs(objs) do if o and o.Parent then o:Destroy() end end
-            activeESPs[part] = nil
-        end
+    -- limpa ESP de candys destruídos (os filhos morrem com o candy;
+    -- aqui só garantimos que não fique registro morto em cache nenhum)
+end
+
+-- PLAYER ESP (loop) — só contorno + nick pequeno FIXO abaixo do personagem
+local function RemovePlayerESP(plr)
+    if not plr.Character then return end
+    local h = plr.Character:FindFirstChild("ESPHighlight")
+    if h then h:Destroy() end
+    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local b = hrp:FindFirstChild("PlayerESP")
+        if b then b:Destroy() end
     end
 end
 
--- PLAYER ESP (loop)
 task.spawn(function()
     while true do
         task.wait(1)
         if State.PlayerESP then
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = plr.Character.HumanoidRootPart
-                    if not hrp:FindFirstChild("PlayerESP") then
+                    local char = plr.Character
+                    local hrp = char.HumanoidRootPart
+
+                    -- destraça versão antiga do script (sem a tag espv)
+                    local oldH = char:FindFirstChild("ESPHighlight")
+                    if oldH and oldH:GetAttribute("espv") ~= 2 then oldH:Destroy() oldH = nil end
+                    local oldB = hrp:FindFirstChild("PlayerESP")
+                    if oldB and oldB:GetAttribute("espv") ~= 2 then oldB:Destroy() oldB = nil end
+
+                    -- contorno: SÓ outline, sem preenchimento (bem clean)
+                    if not oldH then
+                        local h = Instance.new("Highlight")
+                        h.Name = "ESPHighlight"
+                        h:SetAttribute("espv", 2)
+                        h.Parent = char
+                        h.FillTransparency = 1 -- invisível: só o contorno aparece
+                        h.OutlineTransparency = 0
+                        h.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    end
+
+                    -- nick pequeno ABAIXO do personagem, tamanho fixo em
+                    -- pixels (TextSize fixo, sem TextScaled → NÃO cresce
+                    -- nem diminui com a distância)
+                    if not oldB then
                         local bb = Instance.new("BillboardGui")
                         bb.Name = "PlayerESP"
+                        bb:SetAttribute("espv", 2)
                         bb.Parent = hrp
-                        bb.Size = UDim2.new(0, 100, 0, 30)
-                        bb.StudsOffset = Vector3.new(0, 3.5, 0)
+                        bb.Size = UDim2.fromOffset(120, 16)
+                        bb.StudsOffset = Vector3.new(0, -3.4, 0) -- embaixo dos pés
                         bb.AlwaysOnTop = true
                         local tl = Instance.new("TextLabel")
                         tl.Parent = bb
-                        tl.Size = UDim2.new(1,0,1,0)
-                        tl.BackgroundTransparency = 0.4
-                        tl.BackgroundColor3 = Color3.fromRGB(255,0,0)
-                        tl.Text = plr.Name .. " 👤"
-                        tl.TextColor3 = Color3.new(1,1,1)
-                        tl.TextScaled = true
+                        tl.Size = UDim2.new(1, 0, 1, 0)
+                        tl.BackgroundTransparency = 1
+                        tl.Text = plr.Name
+                        tl.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        tl.TextStrokeTransparency = 0.5
+                        tl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                        tl.TextSize = 11 -- FIXO — sem escala por distância
                         tl.Font = Enum.Font.GothamBold
-                        Instance.new("UICorner", tl)
-                    end
-                    if not plr.Character:FindFirstChild("ESPHighlight") then
-                        local h = Instance.new("Highlight")
-                        h.Name = "ESPHighlight"
-                        h.Parent = plr.Character
-                        h.FillColor = Color3.fromRGB(255,0,0)
-                        h.FillTransparency = 0.6
-                        h.OutlineColor = Color3.new(1,1,1)
-                        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                     end
                 end
             end
         else
             for _, plr in ipairs(Players:GetPlayers()) do
-                if plr.Character then
-                    local h = plr.Character:FindFirstChild("ESPHighlight")
-                    if h then h:Destroy() end
-                    local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-                    if hrp then local b = hrp:FindFirstChild("PlayerESP") if b then b:Destroy() end end
-                end
+                RemovePlayerESP(plr)
             end
         end
     end
 end)
 
--- AUTO COLLECT AVANÇADO ✅
+-- COLETA DE CANDY (touch via firetouchinterest/físico) ✅
 local function FireTouch(part)
     if not part or not part.Parent then return end
     local root = HumanoidRootPart
@@ -790,7 +813,7 @@ end
 
 local function CollectCandy(candyPart)
     if not candyPart or not candyPart.Parent then return end
-    -- Se AutoCollect ativado, fica 0.15s em cima para garantir coleta
+    -- Toca em cima: o candy coleta só de tocar
     local startPos = candyPart.Position + Vector3.new(0, 2.5, 0)
     if HumanoidRootPart then
         -- Teleporte seguro com CFrame
@@ -799,10 +822,6 @@ local function CollectCandy(candyPart)
         for i=1,3 do
             FireTouch(candyPart)
             task.wait(0.05)
-        end
-        if State.AutoCollect then
-            task.wait(0.15) -- fica um pouco para coletar
-            FireTouch(candyPart)
         end
     end
 end
@@ -832,7 +851,6 @@ end
 function CollectAllCandys()
     local candys = FindCandys()
     for _, c in ipairs(candys) do
-        if not State.AutoFarm and not State.AutoCollect then break end
         if c and c.Parent then
             CollectCandy(c)
             task.wait(0.2)
@@ -844,22 +862,17 @@ end
 task.spawn(function()
     while true do
         task.wait(0.4)
-        -- Atualiza contador sempre (pcall: um erro aqui matava o loop inteiro
-        -- e o Auto Collect parava de vez)
+        -- Atualiza contador sempre (pcall: um erro aqui derrubaria o loop)
         local okFind, candys = pcall(FindCandys)
         if not okFind or type(candys) ~= "table" then candys = {} end
         CandyCounter.Text = "🍬 Candys: " .. #candys
             .. (State.AutoFarm and " [FARM ON]" or "")
-            .. (State.AutoCollect and " [COLLECT ON]" or "")
 
         -- ESP
         pcall(UpdateESP)
 
-        -- FIX PRINCIPAL: o loop só coletava quando AutoFarm estava ligado.
-        -- O toggle "Auto Collect" setava o flag mas NADA o consultava,
-        -- então ele nunca fazia nada. Agora AutoFarm OU AutoCollect
-        -- disparam a coleta automática.
-        if (State.AutoFarm or State.AutoCollect) and #candys > 0 and HumanoidRootPart and HumanoidRootPart.Parent then
+        -- Só Auto Farm coleta: teletransporta e o candy coleta no toque
+        if State.AutoFarm and #candys > 0 and HumanoidRootPart and HumanoidRootPart.Parent then
             local target = nil
             if State.TeleportMode == "random" then
                 target = candys[math.random(1, #candys)]
@@ -885,10 +898,10 @@ end)
 
 -- Iniciar
 SwitchTab("Evento")
-print("🎃 Halloween Hub FIXADO carregado! Sliders corrigidos + ESP + AutoCollect ON")
+print("🎃 Halloween Hub carregado! Auto Farm + ESP Candy + Player ESP OK")
 -- Notificação
 game.StarterGui:SetCore("SendNotification", {
     Title = "🎃 Halloween Hub",
-    Text = "Versão Corrigida carregada! Sliders OK + ESP ON",
+    Text = "Carregado! Auto Farm + ESP prontos",
     Duration = 4
 })
