@@ -81,6 +81,7 @@ end)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MushHub"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 -- Frame Principal (Compacto)
@@ -89,8 +90,9 @@ MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.5, -250, 0.5, -150)
-MainFrame.Size = UDim2.new(0, 500, 0, 320)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.Size = UDim2.new(0, 560, 0, 344)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
@@ -751,6 +753,17 @@ ScroomsStatusLabel.Size = UDim2.new(1, -10, 0, 22)
 ScroomsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 ScroomsStatusLabel.LayoutOrder = 0
 
+local ScroomsStageLabel = Instance.new("TextLabel")
+ScroomsStageLabel.Parent = ScroomsPage
+ScroomsStageLabel.BackgroundTransparency = 1
+ScroomsStageLabel.Font = Enum.Font.GothamBold
+ScroomsStageLabel.Text = "Etapa: ociosa"
+ScroomsStageLabel.TextColor3 = Color3.fromRGB(120, 255, 160)
+ScroomsStageLabel.TextSize = 12
+ScroomsStageLabel.Size = UDim2.new(1, -10, 0, 18)
+ScroomsStageLabel.TextXAlignment = Enum.TextXAlignment.Left
+ScroomsStageLabel.LayoutOrder = 1
+
 CreateToggle(ScroomsPage, "🍄 Auto Catch (farm)", false, function(enabled)
     State.ScroomsAuto = enabled
 end)
@@ -767,7 +780,7 @@ local ScroomsInfo = Instance.new("TextLabel")
 ScroomsInfo.Parent = ScroomsPage
 ScroomsInfo.BackgroundTransparency = 1
 ScroomsInfo.Font = Enum.Font.Gotham
-ScroomsInfo.Text = "Dica: instrumento no slot 1. SCAN imprime a UI da minigame no console — se o auto catch não travar, cola o console aqui que eu afino."
+ScroomsInfo.Text = "3 etapas: (1) roda — clique no VERDE ESCURO (Perfect), (2) frequência — segura e segue a bolinha, (3) barra — arrasta o bicho junto com a zona. Instrumento no slot 1. Se travar, aperta SCAN e cola o console [MUSH] aqui."
 ScroomsInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
 ScroomsInfo.TextSize = 9
 ScroomsInfo.Size = UDim2.new(1, -10, 0, 30)
@@ -1242,12 +1255,29 @@ task.spawn(function()
 end)
 
 -- ==========================================================
--- SCROOMS AUTO FARM (jogo SCROOMS 🍄) — heurístico:
--- o jogo é novo/fechado, então descobrimos a minigame em
--- tempo real (nomes/textos de UI) em vez de remotes fixos.
+-- SCROOMS AUTO FARM — 3 etapas REAIS do minigame:
+--  1) RODA: marcador girando; clique no VERDE MAIS ESCURO (Perfect)
+--  2) FREQUÊNCIA: segure e siga a bolinha até a onda ficar lisa
+--  3) BARRA: arraste o bicho junto com a zona deslizante até encher
+-- Detecção por assinatura da UI (texto/rotação/movimento), só na
+-- UI do jogo — nunca clica no centro às cegas, nunca na nossa GUI.
 -- ==========================================================
-local VIM = game:GetService("VirtualUser")
+local VIM = game:GetService("VirtualInputManager")
 local scroomsLastSell = 0
+local ScroomsStage = "ociosa"
+local stageSince = os.clock()
+local sawFlag = false -- vi freq/contagem nesta tentativa (libera detecção da barra)
+local lastRingTap = 0
+local freqDot, freqStartX, freqStartY = nil, nil, nil
+local barZone, barKnob = nil, nil
+local ringInfo = nil
+local barWarnedAt = 0
+local freqWarnedAt = 0
+
+local function Viewport()
+    local cam = workspace.CurrentCamera
+    return cam and cam.ViewportSize or Vector2.new(800, 600)
+end
 
 local function ScroomsStatus(text)
     if ScroomsStatusLabel then
@@ -1255,28 +1285,110 @@ local function ScroomsStatus(text)
     end
 end
 
-local function PressSlotKey()
+local function SetStage(s)
+    if s ~= ScroomsStage then
+        ScroomsStage = s
+        stageSince = os.clock()
+        if ScroomsStageLabel then ScroomsStageLabel.Text = "Etapa: " .. s end
+        print("[MUSH] etapa -> " .. s)
+    end
+end
+
+local function NotOurGui(inst)
+    local cur = inst
+    while cur and cur ~= game do
+        if cur:IsA("ScreenGui") then return cur.Name ~= "MushHub" end
+        cur = cur.Parent
+    end
+    return true
+end
+
+local function IsVis(g)
+    local cur = g
+    while cur and cur ~= game do
+        if cur:IsA("GuiObject") and not cur.Visible then return false end
+        if cur:IsA("ScreenGui") then return cur.Enabled ~= false end
+        cur = cur.Parent
+    end
+    return g.Parent ~= nil
+end
+
+local function Ctr(g)
+    local p, s = g.AbsolutePosition, g.AbsoluteSize
+    return p.X + s.X * 0.5, p.Y + s.Y * 0.5
+end
+
+local function EvictDead(t)
+    local n = 0
+    for _ in pairs(t) do
+        n += 1
+        if n > 900 then break end
+    end
+    if n <= 900 then return end
+    for k in pairs(t) do
+        if not k.Parent then t[k] = nil end
+    end
+end
+
+-- ===== INPUT (assinaturas REAIS do VirtualInputManager) =====
+local TOUCH_ID = 9
+local heldX, heldY, held = 0, 0, false
+
+local function HoldBegin(x, y)
+    if held then return end
+    local ok = pcall(function()
+        VIM:SendTouchEvent(TOUCH_ID, Enum.UserInputState.Begin.Value, x, y)
+    end)
+    if ok then
+        held = true
+        heldX, heldY = x, y
+    end
+end
+
+local function HoldMove(x, y)
+    if not held then return end
     pcall(function()
-        VIM:SendKeyEvent(true, Enum.KeyCode.One, false, game, 0)
-        task.wait(0.06)
-        VIM:SendKeyEvent(false, Enum.KeyCode.One, false, game, 0)
+        VIM:SendTouchEvent(TOUCH_ID, Enum.UserInputState.Change.Value, x, y)
+    end)
+    heldX, heldY = x, y
+end
+
+local function HoldEnd()
+    if not held then return end
+    pcall(function()
+        VIM:SendTouchEvent(TOUCH_ID, Enum.UserInputState.End.Value, heldX, heldY)
+    end)
+    held = false
+end
+
+local function TapAt(x, y)
+    pcall(function()
+        VIM:SendMouseButtonEvent(math.floor(x), math.floor(y), 0, true, game, 1)
+        VIM:SendMouseButtonEvent(math.floor(x), math.floor(y), 0, false, game, 1)
     end)
 end
 
-local function ClickGui(g)
-    if not (g and g.Parent) then return end
+-- Segura o clique um tempo (usado só no loop ocioso, fora do RenderStep)
+local function HoldTapAt(x, y, secs)
     pcall(function()
-        local pos = g.AbsolutePosition + g.AbsoluteSize * 0.5
-        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
+        VIM:SendMouseButtonEvent(math.floor(x), math.floor(y), 0, true, game, 1)
+        task.wait(secs or 0.12)
+        VIM:SendMouseButtonEvent(math.floor(x), math.floor(y), 0, false, game, 1)
+    end)
+end
+
+local function PressSlotKey()
+    pcall(function()
+        VIM:SendKeyEvent(true, Enum.KeyCode.One, false, game)
         task.wait(0.05)
-        VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+        VIM:SendKeyEvent(false, Enum.KeyCode.One, false, game)
     end)
 end
 
 local function FindInstrumentTool()
     local bp = LocalPlayer:FindFirstChild("Backpack")
     if not bp then return nil end
-    local keys = {"lute","guitar","ocarina","flute","whistle","harp","lyre","violin","trumpet","drum","banjo","instrument"}
+    local keys = {"lute", "guitar", "ocarina", "flute", "whistle", "harp", "lyre", "violin", "trumpet", "drum", "banjo", "instrument"}
     local fallback = nil
     for _, t in ipairs(bp:GetChildren()) do
         if t:IsA("Tool") then
@@ -1299,78 +1411,399 @@ local function EnsureEquipped()
     if tool then pcall(function() hum:EquipTool(tool) end) end
 end
 
--- Botões/frames da minigame (tune/catch/perfect) por nome OU texto
-local MINGUI_KEYS = {"catch","tune","tuning","frequency","rhythm","minigame","scroom","perfect","pitch","strum"}
-local function GetMinigameTargets()
-    local out = {}
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return out end
-    for _, g in ipairs(pg:GetDescendants()) do
-        if (g:IsA("GuiButton") or g:IsA("Frame")) and g.Visible and g.AbsoluteSize.X > 4 then
-            local hit = false
-            local n = g.Name:lower()
-            for _, k in ipairs(MINGUI_KEYS) do
-                if n:find(k, 1, true) then hit = true break end
-            end
-            if not hit and g:IsA("GuiButton") then
-                pcall(function()
-                    local t = tostring(g.Text):lower()
-                    for _, k in ipairs(MINGUI_KEYS) do
-                        if t:find(k, 1, true) then hit = true break end
-                    end
-                end)
-            end
-            if hit then table.insert(out, g) end
-        end
-    end
-    return out
-end
+-- ===== Textos de estágio (prompts reais do jogo) =====
+local freqLabel, countdownLabel, feedbackText = nil, nil, nil
 
--- Trava o cursor/bola DENTRO da zona (frame Position) todo frame
-local ZONE_KEYS = {"zone","target","goal","catcharea","safe"}
-local BALL_KEYS = {"ball","cursor","marker","pointer","slider","indicator","note"}
-local function SnapCatchZone()
-    if not State.ScroomsAuto then return end
+local function ScanStageTexts()
+    freqLabel, countdownLabel, feedbackText = nil, nil, nil
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return end
-    local zone, ball = nil, nil
+    local vs = Viewport()
     for _, g in ipairs(pg:GetDescendants()) do
-        if g:IsA("GuiObject") and g.Visible then
-            local n = g.Name:lower()
-            if not zone then
-                for _, k in ipairs(ZONE_KEYS) do
-                    if n:find(k, 1, true) then zone = g break end
-                end
-            end
-            if not ball then
-                for _, k in ipairs(BALL_KEYS) do
-                    if n:find(k, 1, true) then ball = g break end
+        if (g:IsA("TextLabel") or g:IsA("TextButton")) and IsVis(g) and NotOurGui(g) then
+            local ok, t = pcall(function() return g.Text end)
+            if ok and type(t) == "string" and t ~= "" then
+                local tl = t:lower()
+                if tl:find("hold to find", 1, true) or tl:find("correct frequency", 1, true) then
+                    freqLabel = g
+                elseif tl == "3" or tl == "2" or tl == "1" or tl == "go!" or tl == "go" then
+                    local cx, cy = Ctr(g)
+                    if cy < vs.Y * 0.7 and cx > vs.X * 0.2 and cx < vs.X * 0.8 then
+                        countdownLabel = g
+                    end
+                elseif tl:find("you caught", 1, true) or tl:find("perfect catch", 1, true) then
+                    feedbackText = "pegou! (Perfect Catch)"
+                elseif tl == "perfect!" or tl == "good!" then
+                    feedbackText = tl
+                elseif tl:find("got away", 1, true) then
+                    feedbackText = "escapou :("
                 end
             end
         end
     end
-    if not (zone and ball and ball.Parent and ball.Parent:IsA("GuiObject")) then return end
-    pcall(function()
-        local zc = zone.AbsolutePosition + zone.AbsoluteSize * 0.5
-        local p = ball.Parent.AbsolutePosition
-        local bs = ball.AbsoluteSize
-        ball.Position = UDim2.fromOffset(zc.X - p.X - bs.X * 0.5, zc.Y - p.Y - bs.Y * 0.5)
-    end)
+    if freqLabel or countdownLabel then sawFlag = true end
 end
-pcall(function() RunService:UnbindFromRenderStep("MushScroomsSnap") end)
-RunService:BindToRenderStep("MushScroomsSnap", Enum.RenderPriority.Last.Value + 1, SnapCatchZone)
 
--- Venda: clica botões com "sell/confirm" e, se não houver, vai no NPC
+-- ===== 1) RODA/ANEL =====
+local ringPrevRot, ringPrevPos = {}, {}
+
+local function ScanRing()
+    ringInfo = nil
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return end
+    local vs = Viewport()
+    EvictDead(ringPrevRot)
+    EvictDead(ringPrevPos)
+    local rotors, movers = {}, {}
+    for _, g in ipairs(pg:GetDescendants()) do
+        if g:IsA("GuiObject") and NotOurGui(g) and IsVis(g) then
+            local r = g.Rotation
+            local pr = ringPrevRot[g]
+            ringPrevRot[g] = r
+            if pr then
+                local d = r - pr
+                if d > 180 then d = d - 360 elseif d < -180 then d = d + 360 end
+                if d > 0.3 and d < 100 then rotors[#rotors + 1] = {g = g, d = d} end
+            end
+            local p = g.AbsolutePosition
+            local pp = ringPrevPos[g]
+            ringPrevPos[g] = p
+            if pp then
+                local dp = (p - pp).Magnitude
+                if dp > 1.5 and dp < 150 then movers[#movers + 1] = {g = g} end
+            end
+        end
+    end
+    -- container do anel: peça redonda girando no meio/topo da tela
+    local ring, markerA, bestD = nil, nil, 0.3
+    for _, it in ipairs(rotors) do
+        local g = it.g
+        local sz = g.AbsoluteSize
+        local cx, cy = Ctr(g)
+        if sz.X >= 40 and sz.Y >= 40 and sz.X <= 460 and sz.Y <= 460 and cy < vs.Y * 0.72 then
+            local par = g.Parent
+            if par and par:IsA("GuiObject") then
+                local ps = par.AbsoluteSize
+                if ps.X >= 50 and ps.X <= 520 and ps.Y >= 50 and ps.Y <= 520
+                    and math.abs(ps.X - ps.Y) < ps.X * 0.7 and it.d >= bestD then
+                    bestD = it.d
+                    ring = par
+                    markerA = g.Rotation
+                end
+            end
+        end
+    end
+    if not ring then
+        -- marcador orbitando (bolinha) em vez de ponteiro girando
+        for _, it in ipairs(movers) do
+            local g = it.g
+            local sz = g.AbsoluteSize
+            local cx, cy = Ctr(g)
+            if sz.X >= 6 and sz.X <= 90 and sz.Y >= 6 and sz.Y <= 90 and cy < vs.Y * 0.72 then
+                local par = g.Parent
+                if par and par:IsA("GuiObject") and par.AbsoluteSize.X >= 60 and par.AbsoluteSize.X <= 520 then
+                    ring = par
+                    local rx, ry = Ctr(par)
+                    markerA = math.deg(math.atan2(cx - rx, -(cy - ry)))
+                    break
+                end
+            end
+        end
+    end
+    if not ring then return end
+    -- wedge: frame verde (o MAIS ESCURO = zona Perfect)
+    local darkG, darkB = nil, math.huge
+    local anyG, anyGBright = nil, -1
+    local saturated, satVal = nil, 0.28
+    local pool = {ring}
+    if ring.Parent and ring.Parent:IsA("GuiObject") then pool[2] = ring.Parent end
+    for _, root in ipairs(pool) do
+        for _, w in ipairs(root:GetDescendants()) do
+            if w ~= ring and w:IsA("GuiObject") and IsVis(w) and NotOurGui(w) then
+                local okc, col = pcall(function() return w.BackgroundColor3 end)
+                if okc and col then
+                    local R, G, B = col.R * 255, col.G * 255, col.B * 255
+                    local bright = 0.299 * R + 0.587 * G + 0.114 * B
+                    if G > R + 12 and G > B + 12 and G > 55 then
+                        if bright < darkB then darkB = bright darkG = w end
+                        if bright > anyGBright then anyGBright = bright anyG = w end
+                    end
+                    local mx = math.max(R, G, B)
+                    local mn = math.min(R, G, B)
+                    if (mx - mn) / 255 > satVal then satVal = (mx - mn) / 255 saturated = w end
+                end
+            end
+        end
+    end
+    local wedge = darkG or anyG or saturated
+    if not wedge then return end
+    local rx, ry = Ctr(ring)
+    local wx, wy = Ctr(wedge)
+    local rsz = ring.AbsoluteSize
+    local target, tapX, tapY
+    if wedge.AbsoluteSize.X >= rsz.X * 0.75 then
+        target = wedge.Rotation
+        local rad = math.rad(target)
+        tapX = rx + math.sin(rad) * rsz.X * 0.36
+        tapY = ry - math.cos(rad) * rsz.Y * 0.36
+    else
+        target = math.deg(math.atan2(wx - rx, -(wy - ry)))
+        tapX, tapY = wx, wy
+    end
+    ringInfo = {target = target, angle = markerA, tapX = tapX, tapY = tapY}
+end
+
+local function RingStep()
+    if not ringInfo or not ringInfo.angle then return end
+    local now = os.clock()
+    if now - lastRingTap < 0.16 then return end
+    local diff = math.abs(ringInfo.angle - ringInfo.target)
+    if diff > 180 then diff = 360 - diff end
+    if diff <= 15 then
+        lastRingTap = now
+        TapAt(ringInfo.tapX, ringInfo.tapY)
+    end
+end
+
+-- ===== 2) FREQUÊNCIA (segurar/sigar a bolinha) =====
+local function ScanFreqRefs()
+    freqDot, freqStartX, freqStartY = nil, nil, nil
+    if not freqLabel or not freqLabel.Parent then return end
+    local gui = freqLabel
+    while gui and not gui:IsA("ScreenGui") do gui = gui.Parent end
+    if not gui then return end
+    local pin, dot, whitest, panel = nil, nil, nil, nil
+    local whiteArea = math.huge
+    local panelArea = 0
+    for _, g in ipairs(gui:GetDescendants()) do
+        if g:IsA("GuiObject") and IsVis(g) and NotOurGui(g) then
+            local n = g.Name:lower()
+            local sz = g.AbsoluteSize
+            if sz.X >= 150 and sz.Y >= 90 then
+                local a = sz.X * sz.Y
+                if a > panelArea then panelArea = a panel = g end
+            end
+            if sz.X >= 6 and sz.X <= 80 and sz.Y >= 6 and sz.Y <= 80 then
+                if n:find("dot", 1, true) or n:find("target", 1, true) or n:find("goal", 1, true) then
+                    dot = dot or g
+                end
+                if n:find("pin", 1, true) or n:find("handle", 1, true) or n:find("slider", 1, true)
+                    or n:find("knob", 1, true) or n:find("pointer", 1, true) or n:find("cursor", 1, true) then
+                    pin = pin or g
+                end
+                local okc, col = pcall(function() return g.BackgroundColor3 end)
+                if okc and col and col.R >= 0.75 and col.G >= 0.75 and col.B >= 0.75 then
+                    if math.max(col.R, col.G, col.B) - math.min(col.R, col.G, col.B) <= 0.16 then
+                        local a = sz.X * sz.Y
+                        if a < whiteArea then whiteArea = a whitest = g end
+                    end
+                end
+            end
+        end
+    end
+    freqDot = dot or whitest
+    local startRef = pin or freqDot
+    if startRef then
+        freqStartX, freqStartY = Ctr(startRef)
+    elseif panel then
+        freqStartX, freqStartY = Ctr(panel)
+        freqStartY = freqStartY - panel.AbsoluteSize.Y * 0.12
+    elseif freqLabel then
+        freqStartX, freqStartY = Ctr(freqLabel)
+    end
+end
+
+local function FreqStep()
+    if not freqStartX then return end
+    if not held then HoldBegin(freqStartX, freqStartY) end
+    if freqDot and freqDot.Parent and IsVis(freqDot) then
+        local dx, dy = Ctr(freqDot)
+        HoldMove(dx, dy)
+    elseif os.clock() - stageSince > 12 and os.clock() - freqWarnedAt > 8 then
+        freqWarnedAt = os.clock()
+        HoldEnd()
+        ScroomsStatus("freq: não achei a bolinha — SCAN")
+    end
+end
+
+-- ===== 3) BARRA (zona deslizante + bicho) =====
+local barPrevX, barPrevW, barMoveX, barMoveW = {}, {}, {}, {}
+
+local function DetectBar()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return nil end
+    local vs = Viewport()
+    local now = os.clock()
+    EvictDead(barPrevX)
+    EvictDead(barPrevW)
+    EvictDead(barMoveX)
+    local best, bestY = nil, 0
+    for _, g in ipairs(pg:GetDescendants()) do
+        if g:IsA("GuiObject") and IsVis(g) and NotOurGui(g) then
+            local sz = g.AbsoluteSize
+            local pos = g.AbsolutePosition
+            if sz.X >= 150 and sz.X <= vs.X * 0.97 and sz.Y >= 18 and sz.Y <= 130 and pos.Y > vs.Y * 0.5 then
+                for _, c in ipairs(g:GetDescendants()) do
+                    if c:IsA("GuiObject") and IsVis(c) then
+                        local cx = c.AbsolutePosition.X
+                        local px = barPrevX[c]
+                        barPrevX[c] = cx
+                        if px and math.abs(cx - px) > 1.5 then barMoveX[c] = now end
+                        local cw = c.AbsoluteSize.X
+                        local pw = barPrevW[c]
+                        barPrevW[c] = cw
+                        if pw and math.abs(cw - pw) > 1.5 then barMoveW[c] = now end
+                    end
+                end
+                local recent = false
+                for _, c in ipairs(g:GetDescendants()) do
+                    local t = barMoveX[c]
+                    if t and now - t < 1.0 then recent = true break end
+                end
+                if recent and pos.Y > bestY then
+                    best = g
+                    bestY = pos.Y
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function ScanBarRefs(cont)
+    barZone, barKnob = nil, nil
+    if not cont then return end
+    local now = os.clock()
+    -- 1) bicho por nome (icon/scroom/etc) — nunca pode virar a "zona"
+    local nkeys = {"scroom", "head", "knob", "ball", "creature", "mushroom", "icon", "white", "player", "marker"}
+    for _, c in ipairs(cont:GetDescendants()) do
+        if c:IsA("GuiObject") and IsVis(c) and c.AbsoluteSize.X <= 130 and c.AbsoluteSize.Y <= 130 then
+            local n = c.Name:lower()
+            for _, k in ipairs(nkeys) do
+                if n:find(k, 1, true) then barKnob = c break end
+            end
+            if barKnob then break end
+        end
+    end
+    -- 2) zona = o que mais se moveu sozinho (exclui o bicho)
+    local newest = 0
+    for _, c in ipairs(cont:GetDescendants()) do
+        if c:IsA("GuiObject") and IsVis(c) and c ~= barKnob then
+            local t = barMoveX[c]
+            if t and now - t < 1.5 and t > newest
+                and c.AbsoluteSize.X >= 8 and c.AbsoluteSize.X <= cont.AbsoluteSize.X
+                and c.AbsoluteSize.Y >= 4 and c.AbsoluteSize.Y <= cont.AbsoluteSize.Y then
+                newest = t
+                barZone = c
+            end
+        end
+    end
+    -- 3) fallback: menor imagem (cabeçinha do scroom) como bicho
+    if not barKnob then
+        local bestArea = math.huge
+        for _, c in ipairs(cont:GetDescendants()) do
+            if (c:IsA("ImageLabel") or c:IsA("ImageButton")) and IsVis(c) and c ~= barZone
+                and c.AbsoluteSize.X >= 8 and c.AbsoluteSize.X <= 110 and c.AbsoluteSize.Y <= 110 then
+                local a = c.AbsoluteSize.X * c.AbsoluteSize.Y
+                if a < bestArea then bestArea = a barKnob = c end
+            end
+        end
+    end
+end
+
+local function BarStep()
+    if not (barZone and barKnob) or not barZone.Parent or not barKnob.Parent then
+        if os.clock() - barWarnedAt > 6 then
+            barWarnedAt = os.clock()
+            ScroomsStatus("barra: não achei zona/bicho — aperta SCAN")
+        end
+        return
+    end
+    if not (IsVis(barZone) and IsVis(barKnob)) then return end
+    local zx, zy = Ctr(barZone)
+    local kx, ky = Ctr(barKnob)
+    if not held then HoldBegin(kx, ky) end
+    HoldMove(zx, zy)
+end
+
+-- ===== Loop por frame =====
+local frameN = 0
+
+local function CatchLoop()
+    if GameKind == "mushyo" then return end
+    if not State.ScroomsAuto then
+        if held then HoldEnd() end
+        return
+    end
+    frameN += 1
+    local doEval = frameN % 3 == 0
+    if doEval then
+        ScanStageTexts()
+        if feedbackText then
+            ScroomsStatus(feedbackText)
+            if feedbackText:find("pegou", 1, true) or feedbackText:find("escapou", 1, true) then
+                sawFlag = false
+            end
+            feedbackText = nil
+        end
+    end
+    -- roda: ângulo FRESCO todo frame (a janela do verde é estreita)
+    if (ScroomsStage == "anel" or doEval) and not freqLabel and not countdownLabel then
+        pcall(ScanRing)
+    end
+    if doEval then
+        if freqLabel then
+            SetStage("frequencia")
+            ScanFreqRefs()
+        elseif countdownLabel then
+            SetStage("contagem")
+        elseif ringInfo then
+            SetStage("anel")
+        else
+            local cont = nil
+            if sawFlag then cont = DetectBar() end
+            if cont then
+                ScanBarRefs(cont)
+                SetStage("barra")
+            else
+                SetStage("ociosa")
+            end
+        end
+        -- solta o segurar se saiu das etapas que precisam de dedo
+        if held and ScroomsStage ~= "frequencia" and ScroomsStage ~= "barra" then
+            if not (sawFlag and os.clock() - stageSince < 0.6) then
+                HoldEnd()
+            end
+        end
+        -- voltou a tocar: tentativa morreu de verdade
+        if ScroomsStage == "ociosa" and sawFlag and os.clock() - stageSince > 4 then
+            sawFlag = false
+        end
+    end
+    if ScroomsStage == "anel" then
+        pcall(RingStep)
+    elseif ScroomsStage == "frequencia" then
+        pcall(FreqStep)
+    elseif ScroomsStage == "barra" then
+        pcall(BarStep)
+    end
+end
+
+pcall(function() RunService:UnbindFromRenderStep("MushScroomsCatch") end)
+RunService:BindToRenderStep("MushScroomsCatch", Enum.RenderPriority.Last.Value + 1, CatchLoop)
+
+-- ===== Venda: botões sell/confirm (clique NO botão, nunca no centro) =====
 local function ClickSellButtons()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     local clicked = 0
     if not pg then return 0 end
     for _, g in ipairs(pg:GetDescendants()) do
-        if g:IsA("GuiButton") and g.Visible and clicked < 3 then
+        if g:IsA("GuiButton") and IsVis(g) and NotOurGui(g) and clicked < 3 then
             local t = ""
             pcall(function() t = tostring(g.Text):lower() end)
             if t:find("sell", 1, true) or t:find("confirm", 1, true) then
-                ClickGui(g)
+                local x, y = Ctr(g)
+                TapAt(x, y)
                 clicked += 1
                 task.wait(0.4)
             end
@@ -1413,64 +1846,127 @@ local function DoAutoSell()
     ScroomsStatus(clicked > 0 and ("vendido (" .. clicked .. " cliques)") or "venda: nada clicável (SCAN?)")
 end
 
--- SCAN: imprime no console a UI NOVA que aparecer (a minigame)
+-- SCAN: despeja a UI da minigame + remotes no console ([MUSH SCAN])
 function StartScroomsScan()
     task.spawn(function()
         ScroomsStatus("SCAN: abra a minigame agora!")
+        print("[MUSH SCAN] --- inicio ---")
+        pcall(function()
+            for _, s in ipairs(game:GetService("ReplicatedStorage"):GetChildren()) do
+                print("[MUSH SCAN] RS." .. s.Name .. " (" .. s.ClassName .. ")")
+            end
+        end)
+        pcall(function()
+            for _, s in ipairs(LocalPlayer:WaitForChild("PlayerGui"):GetChildren()) do
+                print("[MUSH SCAN] PG." .. s.Name .. " (" .. s.ClassName .. ")")
+            end
+        end)
+        pcall(function()
+            for _, s in ipairs(workspace:GetChildren()) do
+                print("[MUSH SCAN] WS." .. s.Name .. " (" .. s.ClassName .. ")")
+            end
+        end)
         local known = {}
-        local pass = 0
-        for _ = 1, 16 do
-            pass += 1
+        local printed = 0
+        for _ = 1, 18 do
             local pg = LocalPlayer:FindFirstChild("PlayerGui")
-            if pg then
+            if pg and printed < 150 then
                 for _, g in ipairs(pg:GetDescendants()) do
-                    if g:IsA("GuiObject") and g.Visible then
+                    if g:IsA("GuiObject") and IsVis(g) and NotOurGui(g) and printed < 150 then
                         local key = g:GetFullName()
                         if not known[key] then
-                            if pass > 1 then
-                                pcall(function()
-                                    local txt = g:IsA("GuiButton") and (" text='" .. tostring(g.Text) .. "'") or ""
-                                    print("[MUSH SCAN] " .. key .. " (" .. g.ClassName .. ")" .. txt)
-                                end)
-                            end
                             known[key] = true
+                            pcall(function()
+                                local txt = ""
+                                if g:IsA("GuiButton") or g:IsA("TextLabel") then
+                                    txt = " txt='" .. tostring(g.Text):sub(1, 70) .. "'"
+                                end
+                                print(string.format(
+                                    "[MUSH SCAN] %s (%s) pos=%.0f,%.0f size=%.0f,%.0f rot=%.0f%s",
+                                    key, g.ClassName,
+                                    g.AbsolutePosition.X, g.AbsolutePosition.Y,
+                                    g.AbsoluteSize.X, g.AbsoluteSize.Y,
+                                    g.Rotation, txt))
+                                printed += 1
+                            end)
                         end
                     end
                 end
             end
             task.wait(0.5)
         end
+        print("[MUSH SCAN] --- fim (" .. tostring(printed) .. " objs) ---")
         ScroomsStatus("SCAN pronto — cola o console aqui")
     end)
 end
 
--- Loop principal do auto farm (só roda em SCROOMS)
+-- Loop principal: recast ocioso + venda (só roda em SCROOMS)
 task.spawn(function()
-    if GameKind == "mushyo" then return end -- scrooms loop morto só no Mushyo
+    if GameKind == "mushyo" then return end
     local tickN = 0
+    local scroomsPrevStage = "ociosa"
     while true do
         task.wait(0.5)
         tickN += 1
-        if State.ScroomsAuto then
+        if State.ScroomsAuto and ScroomsStage == "ociosa" and not sawFlag and os.clock() - stageSince > 1.0 then
             pcall(function()
                 EnsureEquipped()
-                local targets = GetMinigameTargets()
-                if #targets > 0 then
-                    ScroomsStatus("minigame detectada (" .. #targets .. ")")
-                    ClickGui(targets[1])
-                elseif tickN % 3 == 0 then
-                    ScroomsStatus("tocando (re-cast)")
-                    PressSlotKey()
+                -- anda até o scroom mais perto (farm de verdade)
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if hum and root and hum.Health > 0 then
+                    local names = {"redcap", "toastbud", "gloombell", "bluebell", "acornub", "mistdrop",
+                        "sunbrella", "bloomcap", "dewleaf", "bramblepip", "funglebee", "florabella",
+                        "burlcap", "faebud", "koroom", "scroom"}
+                    local best, bestD = nil, 220
+                    for _, m in ipairs(workspace:GetDescendants()) do
+                        if m:IsA("Model") and m ~= char and m.Parent ~= char then
+                            local n = m.Name:lower()
+                            for _, k in ipairs(names) do
+                                if n:find(k, 1, true) then
+                                    local okm, piv = pcall(function() return m:GetPivot() end)
+                                    if okm and piv then
+                                        local d = (piv.Position - root.Position).Magnitude
+                                        if d < bestD then bestD = d best = piv.Position end
+                                    end
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    if best then hum:MoveTo(best) end
+                end
+                if tickN % 3 == 0 then
+                    ScroomsStatus("tocando (esperando scroom)")
+                    -- clique no mundo FORA da nossa GUI (inicia a afinação)
+                    local vs = Viewport()
+                    local x = vs.X * 0.85
+                    if MainFrame and MainFrame.Visible then
+                        local mp, ms = MainFrame.AbsolutePosition, MainFrame.AbsoluteSize
+                        x = mp.X + ms.X + 40
+                        if x > vs.X - 30 then x = mp.X - 40 end
+                        if x < 30 then x = vs.X * 0.85 end
+                    end
+                    HoldTapAt(x, vs.Y * 0.45, 0.12)
                 end
             end)
         end
+        -- para de andar quando a minigame começa
+        if ScroomsStage ~= "ociosa" and ScroomsStage ~= scroomsPrevStage then
+            pcall(function()
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then hum:MoveTo(char:GetPivot().Position) end
+            end)
+        end
+        scroomsPrevStage = ScroomsStage
         if State.ScroomsSell and os.clock() - scroomsLastSell > 30 then
             scroomsLastSell = os.clock()
             pcall(DoAutoSell)
         end
     end
 end)
-
 -- Iniciar (aba inicial = primeira aba visível do jogo detectado)
 local firstTab = ShownTabs[1] and ShownTabs[1][2] or "Evento"
 if not Tabs[firstTab] then firstTab = next(Tabs) or "Evento" end
