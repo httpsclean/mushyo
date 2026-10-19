@@ -152,23 +152,29 @@ MinCorner.Parent = MinBtn
 -- Ícone quadrado quando minimizado — ARRASTÁVEL pela tela;
 -- clique curto (sem arrastar) = reabrir o hub.
 -- Imagem configurável em MINIMIZE_ICON (topo do script).
-local RestoreBtn = Instance.new("TextButton")
+local RestoreBtn = Instance.new("ImageButton") -- Image/ScaleType só existem em ImageButton!
 RestoreBtn.Name = "RestoreBtn"
 RestoreBtn.Parent = ScreenGui
 RestoreBtn.Size = UDim2.fromOffset(60, 60)
 RestoreBtn.Position = UDim2.new(0.5, -30, 0.5, -30)
 RestoreBtn.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
 RestoreBtn.BackgroundTransparency = 0.1
-RestoreBtn.Text = "🎃" -- fallback enquanto não configurar imagem
-RestoreBtn.TextColor3 = Color3.fromRGB(255, 140, 0)
-RestoreBtn.TextSize = 28
-RestoreBtn.Font = Enum.Font.GothamBlack
 RestoreBtn.Visible = false
 RestoreBtn.AutoButtonColor = true
 if MINIMIZE_ICON ~= "rbxassetid://0" and MINIMIZE_ICON ~= "" then
     RestoreBtn.Image = MINIMIZE_ICON
     RestoreBtn.ScaleType = Enum.ScaleType.Crop
-    RestoreBtn.Text = ""
+else
+    -- ImageButton não tem Text → fallback 🎃 num Label por cima
+    local iconFallback = Instance.new("TextLabel")
+    iconFallback.Name = "IconFallback"
+    iconFallback.Parent = RestoreBtn
+    iconFallback.Size = UDim2.new(1, 0, 1, 0)
+    iconFallback.BackgroundTransparency = 1
+    iconFallback.Text = "🎃"
+    iconFallback.TextColor3 = Color3.fromRGB(255, 140, 0)
+    iconFallback.TextSize = 28
+    iconFallback.Font = Enum.Font.GothamBlack
 end
 local RestoreCorner = Instance.new("UICorner")
 RestoreCorner.CornerRadius = UDim.new(0, 12)
