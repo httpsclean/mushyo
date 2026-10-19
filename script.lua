@@ -18,17 +18,21 @@ local State = {
     Fly = false,
     Speed = false,
     AntiAFK = false,
-    ESP = false,
+    ESP = true, -- FIX: era false mas o toggle de ESP já inicia mostrando ON
     Noclip = false,
     InfiniteJump = false,
     AutoFarm = false,
-    AutoCollect = false,
+    AutoCollect = true, -- FIX: era false mas o toggle já mostra ON (estado inicial tem que bater com a UI)
     TeleportMode = "random",
     FlySpeed = 50,
     WalkSpeed = 16,
     JumpPower = 50,
     CurrentTab = "Evento"
 }
+
+-- Forward declaration: o callback do toggle/RESET chama ClearAllESP antes dela
+-- ser definida lá embaixo; sem isso, clicava e dava "attempt to call nil"
+local ClearAllESP
 
 -- Reconectar ao renascer
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -616,19 +620,25 @@ local function FindCandys()
     local candys = {}
     -- Tenta achar por vários nomes comuns
     local names = {"Candy", "CandyCorn", "HalloweenCandy", "Treat", "Doce", "PumpkinCandy"}
+    local seen = {}
     for _, obj in ipairs(workspace:GetDescendants()) do
         for _, n in ipairs(names) do
-            if obj.Name:lower():find(n:lower()) and obj:IsA("BasePart") then
+            if obj.Name:lower():find(n:lower(), 1, true) and obj:IsA("BasePart") then
                 -- evita duplicatas: se for modelo, pega só o PrimaryPart
-                if not obj.Parent:FindFirstChild("Humanoid") then
+                -- FIX: obj.Parent pode ser nil se o objeto foi destruído
+                -- durante a varredura → erro derrubava o loop do Auto Collect
+                if obj.Parent and not obj.Parent:FindFirstChild("Humanoid") and not seen[obj] then
+                    seen[obj] = true
                     table.insert(candys, obj)
                     break
                 end
             end
         end
-        -- Também detecta por atributos
-        if obj:GetAttribute("Candy") or obj:GetAttribute("IsCandy") then
-            if obj:IsA("BasePart") then table.insert(candys, obj) end
+        -- Também detecta por atributos (sem duplicar o que já entrou acima)
+        if (obj:GetAttribute("Candy") or obj:GetAttribute("IsCandy"))
+            and obj:IsA("BasePart") and not seen[obj] then
+            seen[obj] = true
+            table.insert(candys, obj)
         end
     end
     return candys
@@ -641,7 +651,7 @@ ESPFolder.Parent = workspace
 
 local activeESPs = {}
 
-local function ClearAllESP()
+function ClearAllESP() -- atribui à variável local declarada acima (não é uma local nova)
     for _,v in ipairs(ESPFolder:GetChildren()) do v:Destroy() end
     activeESPs = {}
 end
@@ -834,15 +844,22 @@ end
 task.spawn(function()
     while true do
         task.wait(0.4)
-        -- Atualiza contador sempre
-        local candys = FindCandys()
-        CandyCounter.Text = "🍬 Candys: " .. #candys .. (State.AutoFarm and " [FARM ON]" or "")
-        
+        -- Atualiza contador sempre (pcall: um erro aqui matava o loop inteiro
+        -- e o Auto Collect parava de vez)
+        local okFind, candys = pcall(FindCandys)
+        if not okFind or type(candys) ~= "table" then candys = {} end
+        CandyCounter.Text = "🍬 Candys: " .. #candys
+            .. (State.AutoFarm and " [FARM ON]" or "")
+            .. (State.AutoCollect and " [COLLECT ON]" or "")
+
         -- ESP
         pcall(UpdateESP)
-        
-        -- Auto Farm
-        if State.AutoFarm and #candys > 0 and HumanoidRootPart then
+
+        -- FIX PRINCIPAL: o loop só coletava quando AutoFarm estava ligado.
+        -- O toggle "Auto Collect" setava o flag mas NADA o consultava,
+        -- então ele nunca fazia nada. Agora AutoFarm OU AutoCollect
+        -- disparam a coleta automática.
+        if (State.AutoFarm or State.AutoCollect) and #candys > 0 and HumanoidRootPart and HumanoidRootPart.Parent then
             local target = nil
             if State.TeleportMode == "random" then
                 target = candys[math.random(1, #candys)]
@@ -858,7 +875,9 @@ task.spawn(function()
                 target = candys[1]
             end
             if target and target.Parent then
-                CollectCandy(target)
+                -- pcall: se um candy for destruído no meio do teleporte,
+                -- o loop morreria e o Auto Collect "parava de funcionar"
+                pcall(CollectCandy, target)
             end
         end
     end
