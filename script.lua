@@ -13,6 +13,14 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
+-- Padrões REAIS do jogo, capturados ANTES de qualquer alteração nossa.
+-- 50 é o default do motor, mas todo jogo pode mudar — e jogos novos usam
+-- JumpHeight (7.2, UseJumpPower=false) em vez de JumpPower.
+local OrigWalkSpeed = Humanoid.WalkSpeed
+local OrigJumpPower = Humanoid.JumpPower
+local OrigJumpHeight = Humanoid.JumpHeight
+local OrigUseJumpPower = Humanoid.UseJumpPower
+
 -- Estado
 local State = {
     Fly = false,
@@ -24,14 +32,17 @@ local State = {
     AutoFarm = false,
     TeleportMode = "random",
     FlySpeed = 50,
-    WalkSpeed = 16,
-    JumpPower = 50,
+    WalkSpeed = OrigWalkSpeed,
+    JumpPower = OrigJumpPower,
+    JumpTouched = false, -- true quando o usuário mexe no slider de pulo
     CurrentTab = "Evento"
 }
 
 -- Forward declaration: o callback do toggle/RESET chama ClearAllESP antes dela
 -- ser definida lá embaixo; sem isso, clicava e dava "attempt to call nil"
 local ClearAllESP
+-- Noclip: declarados aqui porque o toggle (página Player) chama antes da definição
+local ApplyNoclip, RestoreCollision
 
 -- Reconectar ao renascer
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -39,10 +50,13 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     Humanoid = char:WaitForChild("Humanoid")
     HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
     task.wait(0.5)
-    -- Reaplica Speed/Jump salvos
-    Humanoid.UseJumpPower = true
+    -- Reaplica Speed/Jump salvos. O pulo só é reforçado se o usuário já
+    -- mexeu no slider — senão o modo de pulo do jogo fica intacto.
     Humanoid.WalkSpeed = State.WalkSpeed
-    Humanoid.JumpPower = State.JumpPower
+    if State.JumpTouched then
+        Humanoid.UseJumpPower = true
+        Humanoid.JumpPower = State.JumpPower
+    end
 end)
 
 -- GUI
@@ -276,8 +290,17 @@ local function CreateSlider(parent, title, min, max, default, callback)
             end)
         end
     end)
-    
-    return container
+
+    -- Handle com Set(): atualiza valor, barra e label do slider.
+    -- Usado pelos botões de resetar — antes a UI ficava parada no valor antigo.
+    return {Set = function(v, silent)
+        v = math.clamp(v, min, max)
+        value = v
+        local rel = (v - min) / (max - min)
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        label.Text = title .. ": " .. math.floor(v)
+        if callback and not silent then callback(v) end
+    end}
 end
 
 -- Função Dropdown Compacta
@@ -400,10 +423,17 @@ end)
 
 CreateToggle(PlayerPage, "🚪 Noclip", false, function(enabled)
     State.Noclip = enabled
+    -- Aplica/restaura já no clique (sem esperar o próximo frame)
+    if enabled then
+        if ApplyNoclip then ApplyNoclip() end
+    else
+        if RestoreCollision then RestoreCollision() end
+    end
 end)
 
 -- SLIDER CORRIGIDO: WalkSpeed agora funciona 100% ✅
-CreateSlider(PlayerPage, "Velocidade (WalkSpeed)", 16, 150, 16, function(value)
+local SpeedSlider = CreateSlider(PlayerPage, "Velocidade (WalkSpeed)",
+    math.min(OrigWalkSpeed, 16), math.max(150, OrigWalkSpeed), OrigWalkSpeed, function(value)
     State.WalkSpeed = value
     -- CORREÇÃO: Sempre aplica, não depende do toggle Speed
     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -413,23 +443,31 @@ CreateSlider(PlayerPage, "Velocidade (WalkSpeed)", 16, 150, 16, function(value)
 end)
 
 -- SLIDER CORRIGIDO: JumpPower agora funciona 100% ✅
-CreateSlider(PlayerPage, "Pulo (JumpPower)", 50, 250, 50, function(value)
+local JumpSlider = CreateSlider(PlayerPage, "Pulo (JumpPower)",
+    math.min(50, OrigJumpPower), math.max(250, OrigJumpPower), OrigJumpPower, function(value)
     State.JumpPower = value
+    State.JumpTouched = true -- a partir daqui o slider assume o controle do pulo
     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     if hum then
-        hum.UseJumpPower = true -- ESSENCIAL: Ativa JumpPower em vez de JumpHeight
+        hum.UseJumpPower = true -- passa a usar JumpPower (modo do slider)
         hum.JumpPower = value
-        -- Se o jogo usar JumpHeight, também ajusta proporcionalmente
-        -- hum.JumpHeight = value / 3.5
     end
 end)
 
 CreateButton(PlayerPage, "🔄 Resetar Speed/Jump", Color3.fromRGB(80,80,80), function()
-    State.WalkSpeed = 16
-    State.JumpPower = 50
-    Humanoid.WalkSpeed = 16
-    Humanoid.UseJumpPower = true
-    Humanoid.JumpPower = 50
+    -- Volta pros padrões REAIS do jogo (capturados no carregamento):
+    -- State + personagem + UI dos sliders, respeitando o modo de pulo do jogo
+    SpeedSlider.Set(OrigWalkSpeed)
+    State.JumpPower = OrigJumpPower
+    State.JumpTouched = false
+    JumpSlider.Set(OrigJumpPower, true) -- UI do slider, sem callback (não força UseJumpPower)
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = State.WalkSpeed
+        hum.UseJumpPower = OrigUseJumpPower
+        hum.JumpPower = OrigJumpPower
+        hum.JumpHeight = OrigJumpHeight
+    end
 end)
 
 -- ===== PÁGINA FLY =====
@@ -513,9 +551,14 @@ CreateButton(AjustesPage, "🔄 RESETAR TUDO", Color3.fromRGB(200, 50, 50), func
     State.InfiniteJump = false
     State.AntiAFK = false
     State.AutoFarm = false
-    Humanoid.WalkSpeed = 16
-    Humanoid.UseJumpPower = true
-    Humanoid.JumpPower = 50
+    SpeedSlider.Set(OrigWalkSpeed) -- sincroniza State + UI + personagem
+    State.JumpPower = OrigJumpPower
+    State.JumpTouched = false
+    JumpSlider.Set(OrigJumpPower, true) -- UI do slider sem forçar UseJumpPower
+    Humanoid.WalkSpeed = OrigWalkSpeed
+    Humanoid.UseJumpPower = OrigUseJumpPower
+    Humanoid.JumpPower = OrigJumpPower
+    Humanoid.JumpHeight = OrigJumpHeight
     Humanoid:ChangeState(Enum.HumanoidStateType.Running)
     ClearAllESP()
 end)
@@ -586,16 +629,38 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- Noclip
-RunService.Stepped:Connect(function()
-    if State.Noclip and Character then
-        for _, part in ipairs(Character:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
-            end
+-- Noclip (reforçado)
+-- O problema original: o Humanoid do Roblox REATIVA CanCollide do tronco/
+-- cabeça a cada mudança de estado (pular, aterrissar, levantar...) e em
+-- alguns jogos todo frame — um único hook por frame não dava conta.
+-- Solução: aplicar ANTES (Stepped) e logo DEPOIS (Heartbeat) da física,
+-- e restaurar o layout padrão do Humanoid ao desligar.
+ApplyNoclip = function()
+    if not State.Noclip then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.CanCollide then
+            part.CanCollide = false
         end
     end
-end)
+end
+
+RestoreCollision = function()
+    local char = LocalPlayer.Character
+    if not char then return end
+    -- Layout padrão do Humanoid: só Head e Torso (R6/R15) colidem;
+    -- braços, pernas e HumanoidRootPart ficam sem colisão.
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = part.Name == "Head" or part.Name == "Torso"
+                or part.Name == "UpperTorso" or part.Name == "LowerTorso"
+        end
+    end
+end
+
+RunService.Stepped:Connect(ApplyNoclip)   -- antes da simulação de física
+RunService.Heartbeat:Connect(ApplyNoclip) -- logo após: fecha o cerco no mesmo frame
 
 -- Travar WalkSpeed se Speed Boost ligado (opcional)
 RunService.Heartbeat:Connect(function()
