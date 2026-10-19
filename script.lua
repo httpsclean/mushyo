@@ -1,4 +1,4 @@
--- Halloween Hub - VERSÃO CORRIGIDA ✅
+-- Mush Hub (antes: Halloween Hub) ✅
 -- CORRIGIDO: Sliders de Speed/Jump | ESP Candy (self-healing) | Player ESP clean
 
 local Players = game:GetService("Players")
@@ -32,6 +32,8 @@ local State = {
     AutoFarm = false,
     TeleportMode = "random",
     FlySpeed = 50,
+    FlyUp = false, -- botão SUBIR (mobile) sendo segurado
+    FlyDown = false, -- botão DESCER (mobile) sendo segurado
     WalkSpeed = OrigWalkSpeed,
     JumpPower = OrigJumpPower,
     JumpTouched = false, -- true quando o usuário mexe no slider de pulo
@@ -57,11 +59,15 @@ LocalPlayer.CharacterAdded:Connect(function(char)
         Humanoid.UseJumpPower = true
         Humanoid.JumpPower = State.JumpPower
     end
+    -- Fly estava ativo na morte: reaplica no corpo novo
+    if State.Fly then
+        Humanoid.PlatformStand = true
+    end
 end)
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "HalloweenHub"
+ScreenGui.Name = "MushHub"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -97,7 +103,7 @@ local Title = Instance.new("TextLabel")
 Title.Parent = Header
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBlack
-Title.Text = "🎃 HALLOWEEN HUB | FIXADO"
+Title.Text = "🎃 Mush Hub"
 Title.TextColor3 = Color3.fromRGB(255, 140, 0)
 Title.TextSize = 16
 Title.Position = UDim2.new(0, 0, 0, 0)
@@ -108,7 +114,7 @@ local CloseBtn = Instance.new("TextButton")
 CloseBtn.Parent = Header
 CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 CloseBtn.BackgroundTransparency = 0.3
-CloseBtn.Text = "✕"
+CloseBtn.Text = "X" -- ASCII puro: o "✕" não renderiza no executor (saía □)
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseBtn.TextSize = 12
 CloseBtn.Font = Enum.Font.GothamBold
@@ -117,6 +123,89 @@ CloseBtn.Size = UDim2.new(0, 20, 0, 20)
 local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 5)
 CloseCorner.Parent = CloseBtn
+
+-- Botão de minimizar (ao lado do X)
+local MinBtn = Instance.new("TextButton")
+MinBtn.Parent = Header
+MinBtn.BackgroundColor3 = Color3.fromRGB(35, 12, 12)
+MinBtn.BackgroundTransparency = 0.3
+MinBtn.Text = "-" -- ASCII puro também
+MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinBtn.TextSize = 14
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.Position = UDim2.new(1, -50, 0, 0)
+MinBtn.Size = UDim2.new(0, 20, 0, 20)
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 5)
+MinCorner.Parent = MinBtn
+
+-- Pill que aparece quando minimizado (depois vira os quadradinhos com imagem)
+local RestoreBtn = Instance.new("TextButton")
+RestoreBtn.Name = "RestoreBtn"
+RestoreBtn.Parent = ScreenGui
+RestoreBtn.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
+RestoreBtn.BackgroundTransparency = 0.1
+RestoreBtn.Position = UDim2.new(0.5, -60, 0.5, -16)
+RestoreBtn.Size = UDim2.new(0, 120, 0, 32)
+RestoreBtn.Text = "Mush Hub"
+RestoreBtn.TextColor3 = Color3.fromRGB(255, 140, 0)
+RestoreBtn.TextSize = 14
+RestoreBtn.Font = Enum.Font.GothamBlack
+RestoreBtn.Visible = false
+local RestoreCorner = Instance.new("UICorner")
+RestoreCorner.CornerRadius = UDim.new(0, 8)
+RestoreCorner.Parent = RestoreBtn
+local RestoreStroke = Instance.new("UIStroke")
+RestoreStroke.Color = Color3.fromRGB(255, 140, 0)
+RestoreStroke.Thickness = 2
+RestoreStroke.Parent = RestoreBtn
+
+-- Botões de voo pra MOBILE: segurar = voa (some quando o fly está off)
+local FlyUpBtn = Instance.new("TextButton")
+FlyUpBtn.Name = "FlyUpBtn"
+FlyUpBtn.Parent = ScreenGui
+FlyUpBtn.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
+FlyUpBtn.BackgroundTransparency = 0.1
+FlyUpBtn.Position = UDim2.new(1, -100, 1, -180)
+FlyUpBtn.Size = UDim2.new(0, 90, 0, 34)
+FlyUpBtn.Text = "SUBIR"
+FlyUpBtn.TextColor3 = Color3.fromRGB(255, 140, 0)
+FlyUpBtn.TextSize = 13
+FlyUpBtn.Font = Enum.Font.GothamBold
+FlyUpBtn.Visible = false
+
+local FlyDownBtn = Instance.new("TextButton")
+FlyDownBtn.Name = "FlyDownBtn"
+FlyDownBtn.Parent = ScreenGui
+FlyDownBtn.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
+FlyDownBtn.BackgroundTransparency = 0.1
+FlyDownBtn.Position = UDim2.new(1, -100, 1, -140)
+FlyDownBtn.Size = UDim2.new(0, 90, 0, 34)
+FlyDownBtn.Text = "DESCER"
+FlyDownBtn.TextColor3 = Color3.fromRGB(255, 140, 0)
+FlyDownBtn.TextSize = 13
+FlyDownBtn.Font = Enum.Font.GothamBold
+FlyDownBtn.Visible = false
+
+for _, b in ipairs({FlyUpBtn, FlyDownBtn}) do
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = b
+    local s = Instance.new("UIStroke")
+    s.Color = Color3.fromRGB(255, 140, 0)
+    s.Thickness = 2
+    s.Parent = b
+end
+
+FlyUpBtn.MouseButton1Down:Connect(function() State.FlyUp = true end)
+FlyDownBtn.MouseButton1Down:Connect(function() State.FlyDown = true end)
+-- Soltar em qualquer lugar (mouse ou dedo) desliga os dois
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        State.FlyUp = false
+        State.FlyDown = false
+    end
+end)
 
 -- Tabs (Horizontal Compacto)
 local TabBar = Instance.new("Frame")
@@ -471,19 +560,22 @@ CreateButton(PlayerPage, "🔄 Resetar Speed/Jump", Color3.fromRGB(80,80,80), fu
 end)
 
 -- ===== PÁGINA FLY =====
-CreateToggle(FlyPage, "🕊️ Fly Mode (WASD + Espaço/Shift)", false, function(enabled)
+CreateToggle(FlyPage, "🕊️ Fly Mode (WASD/Joystick + Espaço/Shift)", false, function(enabled)
     State.Fly = enabled
+    -- Botões de toque só aparecem voando
+    FlyUpBtn.Visible = enabled
+    FlyDownBtn.Visible = enabled
     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     if hum then
-        if enabled then
-            hum:ChangeState(Enum.HumanoidStateType.Flying)
-            hum.PlatformStand = false
-        else
-            hum:ChangeState(Enum.HumanoidStateType.Running)
-            hum.PlatformStand = false
-            if HumanoidRootPart then
-                HumanoidRootPart.Velocity = Vector3.new(0,0,0)
-            end
+        -- PlatformStand: o Humanoid SOLTA o controle do corpo. Sem isso a
+        -- física dele brigava com a velocidade do fly e o personagem
+        -- tremia "no ar no chão" sem conseguir subir de verdade.
+        hum.PlatformStand = enabled
+    end
+    if not enabled then
+        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         end
     end
 end)
@@ -584,33 +676,62 @@ for name, tab in pairs(Tabs) do
 end
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
+-- Minimizar: esconde o hub e mostra o pill de restaurar
+MinBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    RestoreBtn.Visible = true
+end)
+RestoreBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    RestoreBtn.Visible = false
+end)
+
 -- ==========================================================
 -- SISTEMAS CORE - CORRIGIDOS E NOVOS
 -- ==========================================================
 
--- Fly System (melhorado)
+-- Fly System (reforçado): PlatformStand + controle total da velocidade
 RunService.RenderStepped:Connect(function()
-    if State.Fly and HumanoidRootPart and Character and Character.Parent then
-        local hum = Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.Flying) end
-        local camera = workspace.CurrentCamera
-        if not camera then return end
-        local moveDirection = Vector3.new()
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection += camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection -= camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection -= camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection += camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection += Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveDirection -= Vector3.new(0, 1, 0)
-        end
-        if moveDirection.Magnitude > 0 then
-            HumanoidRootPart.AssemblyLinearVelocity = moveDirection.Unit * State.FlySpeed
-            HumanoidRootPart.AssemblyAngularVelocity = Vector3.new(0,0,0)
-        else
-            HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
-        end
+    if not State.Fly then return end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root or not root.Parent then return end
+
+    -- Garante que o Humanoid não retome o controle (ex.: logo após renascer)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and not hum.PlatformStand then hum.PlatformStand = true end
+
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+    local moveDirection = Vector3.new()
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection += camera.CFrame.LookVector end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection -= camera.CFrame.LookVector end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection -= camera.CFrame.RightVector end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection += camera.CFrame.RightVector end
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection += Vector3.new(0, 1, 0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        moveDirection -= Vector3.new(0, 1, 0)
     end
+
+    -- Mobile/gamepad: MoveDirection do Humanoid (joystick já alimenta isso)
+    if hum and hum.MoveDirection.Magnitude > 0 then
+        moveDirection += hum.MoveDirection
+    end
+    -- Botões de toque SUBIR/DESCER (segurados)
+    if State.FlyUp then
+        moveDirection += Vector3.new(0, 1, 0)
+    end
+    if State.FlyDown then
+        moveDirection -= Vector3.new(0, 1, 0)
+    end
+
+    if moveDirection.Magnitude > 0 then
+        root.AssemblyLinearVelocity = moveDirection.Unit * State.FlySpeed
+    else
+        -- Parado: zera a velocidade todo frame → anula a gravidade = congela no ar
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    end
+    root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 end)
 
 -- Infinite Jump
@@ -963,10 +1084,10 @@ end)
 
 -- Iniciar
 SwitchTab("Evento")
-print("🎃 Halloween Hub carregado! Auto Farm + ESP Candy + Player ESP OK")
+print("🎃 Mush Hub carregado! Auto Farm + ESP Candy + Player ESP OK")
 -- Notificação
 game.StarterGui:SetCore("SendNotification", {
-    Title = "🎃 Halloween Hub",
+    Title = "🎃 Mush Hub",
     Text = "Carregado! Auto Farm + ESP prontos",
     Duration = 4
 })
