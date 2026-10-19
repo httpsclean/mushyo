@@ -8,6 +8,15 @@ local Lighting = game:GetService("Lighting")
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 
+-- ==========================================================
+-- CONFIG — ícone exibido quando o hub está minimizado
+-- Troque pelo ID da SUA imagem (formato: rbxassetid://1234567890).
+-- Como pegar: envie a imagem no Roblox como Decal, ou abra uma
+-- imagem no site do Roblox e copie o número da URL → cole aqui.
+-- Mantido "rbxassetid://0", o ícone mostra 🎃 de fallback.
+-- ==========================================================
+local MINIMIZE_ICON = "rbxassetid://4115301637"
+
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
@@ -32,8 +41,6 @@ local State = {
     AutoFarm = false,
     TeleportMode = "random",
     FlySpeed = 50,
-    FlyUp = false, -- botão SUBIR (mobile) sendo segurado
-    FlyDown = false, -- botão DESCER (mobile) sendo segurado
     WalkSpeed = OrigWalkSpeed,
     JumpPower = OrigJumpPower,
     JumpTouched = false, -- true quando o usuário mexe no slider de pulo
@@ -45,6 +52,8 @@ local State = {
 local ClearAllESP
 -- Noclip: declarados aqui porque o toggle (página Player) chama antes da definição
 local ApplyNoclip, RestoreCollision
+-- Fly: declarados antes do toggle (mesmo esquema)
+local AttachFly, DetachFly
 
 -- Reconectar ao renascer
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -62,6 +71,7 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     -- Fly estava ativo na morte: reaplica no corpo novo
     if State.Fly then
         Humanoid.PlatformStand = true
+        AttachFly(char)
     end
 end)
 
@@ -139,71 +149,78 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 5)
 MinCorner.Parent = MinBtn
 
--- Pill que aparece quando minimizado (depois vira os quadradinhos com imagem)
+-- Ícone quadrado quando minimizado — ARRASTÁVEL pela tela;
+-- clique curto (sem arrastar) = reabrir o hub.
+-- Imagem configurável em MINIMIZE_ICON (topo do script).
 local RestoreBtn = Instance.new("TextButton")
 RestoreBtn.Name = "RestoreBtn"
 RestoreBtn.Parent = ScreenGui
+RestoreBtn.Size = UDim2.fromOffset(60, 60)
+RestoreBtn.Position = UDim2.new(0.5, -30, 0.5, -30)
 RestoreBtn.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
 RestoreBtn.BackgroundTransparency = 0.1
-RestoreBtn.Position = UDim2.new(0.5, -60, 0.5, -16)
-RestoreBtn.Size = UDim2.new(0, 120, 0, 32)
-RestoreBtn.Text = "Mush Hub"
+RestoreBtn.Text = "🎃" -- fallback enquanto não configurar imagem
 RestoreBtn.TextColor3 = Color3.fromRGB(255, 140, 0)
-RestoreBtn.TextSize = 14
+RestoreBtn.TextSize = 28
 RestoreBtn.Font = Enum.Font.GothamBlack
 RestoreBtn.Visible = false
+RestoreBtn.AutoButtonColor = true
+if MINIMIZE_ICON ~= "rbxassetid://0" and MINIMIZE_ICON ~= "" then
+    RestoreBtn.Image = MINIMIZE_ICON
+    RestoreBtn.ScaleType = Enum.ScaleType.Crop
+    RestoreBtn.Text = ""
+end
 local RestoreCorner = Instance.new("UICorner")
-RestoreCorner.CornerRadius = UDim.new(0, 8)
+RestoreCorner.CornerRadius = UDim.new(0, 12)
 RestoreCorner.Parent = RestoreBtn
 local RestoreStroke = Instance.new("UIStroke")
 RestoreStroke.Color = Color3.fromRGB(255, 140, 0)
 RestoreStroke.Thickness = 2
 RestoreStroke.Parent = RestoreBtn
 
--- Botões de voo pra MOBILE: segurar = voa (some quando o fly está off)
-local FlyUpBtn = Instance.new("TextButton")
-FlyUpBtn.Name = "FlyUpBtn"
-FlyUpBtn.Parent = ScreenGui
-FlyUpBtn.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
-FlyUpBtn.BackgroundTransparency = 0.1
-FlyUpBtn.Position = UDim2.new(1, -100, 1, -180)
-FlyUpBtn.Size = UDim2.new(0, 90, 0, 34)
-FlyUpBtn.Text = "SUBIR"
-FlyUpBtn.TextColor3 = Color3.fromRGB(255, 140, 0)
-FlyUpBtn.TextSize = 13
-FlyUpBtn.Font = Enum.Font.GothamBold
-FlyUpBtn.Visible = false
+-- Arrastar pela tela (mouse ou dedo) + clique curto pra abrir
+local iconDragging = false
+local iconMoved = false
+local iconDragStart = Vector2.zero
+local iconAbsStart = Vector2.zero
 
-local FlyDownBtn = Instance.new("TextButton")
-FlyDownBtn.Name = "FlyDownBtn"
-FlyDownBtn.Parent = ScreenGui
-FlyDownBtn.BackgroundColor3 = Color3.fromRGB(20, 8, 8)
-FlyDownBtn.BackgroundTransparency = 0.1
-FlyDownBtn.Position = UDim2.new(1, -100, 1, -140)
-FlyDownBtn.Size = UDim2.new(0, 90, 0, 34)
-FlyDownBtn.Text = "DESCER"
-FlyDownBtn.TextColor3 = Color3.fromRGB(255, 140, 0)
-FlyDownBtn.TextSize = 13
-FlyDownBtn.Font = Enum.Font.GothamBold
-FlyDownBtn.Visible = false
+RestoreBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        iconDragging = true
+        iconMoved = false
+        iconDragStart = Vector2.new(input.Position.X, input.Position.Y)
+        iconAbsStart = RestoreBtn.AbsolutePosition
+    end
+end)
 
-for _, b in ipairs({FlyUpBtn, FlyDownBtn}) do
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 8)
-    c.Parent = b
-    local s = Instance.new("UIStroke")
-    s.Color = Color3.fromRGB(255, 140, 0)
-    s.Thickness = 2
-    s.Parent = b
-end
+UserInputService.InputChanged:Connect(function(input)
+    if not iconDragging then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
+        return
+    end
+    local delta = Vector2.new(input.Position.X, input.Position.Y) - iconDragStart
+    if delta.Magnitude > 10 then iconMoved = true end
+    if not iconMoved then return end
+    local cam = workspace.CurrentCamera
+    local screen = cam and cam.ViewportSize or Vector2.new(1920, 1080)
+    local size = RestoreBtn.AbsoluteSize
+    local target = iconAbsStart + delta
+    RestoreBtn.Position = UDim2.fromOffset(
+        math.clamp(target.X, 0, math.max(0, screen.X - size.X)),
+        math.clamp(target.Y, 0, math.max(0, screen.Y - size.Y))
+    )
+end)
 
-FlyUpBtn.MouseButton1Down:Connect(function() State.FlyUp = true end)
-FlyDownBtn.MouseButton1Down:Connect(function() State.FlyDown = true end)
--- Soltar em qualquer lugar (mouse ou dedo) desliga os dois
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        State.FlyUp = false
-        State.FlyDown = false
+        if iconDragging then
+            local wasClick = not iconMoved
+            iconDragging = false
+            if wasClick then
+                MainFrame.Visible = true
+                RestoreBtn.Visible = false
+            end
+        end
     end
 end)
 
@@ -560,20 +577,19 @@ CreateButton(PlayerPage, "🔄 Resetar Speed/Jump", Color3.fromRGB(80,80,80), fu
 end)
 
 -- ===== PÁGINA FLY =====
-CreateToggle(FlyPage, "🕊️ Fly Mode (WASD/Joystick + Espaço/Shift)", false, function(enabled)
+CreateToggle(FlyPage, "🕊️ Fly Mode (segue a câmera)", false, function(enabled)
     State.Fly = enabled
-    -- Botões de toque só aparecem voando
-    FlyUpBtn.Visible = enabled
-    FlyDownBtn.Visible = enabled
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then
-        -- PlatformStand: o Humanoid SOLTA o controle do corpo. Sem isso a
-        -- física dele brigava com a velocidade do fly e o personagem
-        -- tremia "no ar no chão" sem conseguir subir de verdade.
+        -- PlatformStand: o Humanoid solta o controle do corpo
         hum.PlatformStand = enabled
     end
-    if not enabled then
-        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if enabled then
+        AttachFly(char) -- LinearVelocity: a física obedece sem deriva
+    else
+        DetachFly(char)
+        local root = char and char:FindFirstChild("HumanoidRootPart")
         if root then
             root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         end
@@ -676,60 +692,97 @@ for name, tab in pairs(Tabs) do
 end
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
--- Minimizar: esconde o hub e mostra o pill de restaurar
+-- Minimizar: esconde o hub e mostra o ícone (arrastável; clique = abrir)
 MinBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     RestoreBtn.Visible = true
-end)
-RestoreBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = true
-    RestoreBtn.Visible = false
 end)
 
 -- ==========================================================
 -- SISTEMAS CORE - CORRIGIDOS E NOVOS
 -- ==========================================================
 
--- Fly System (reforçado): PlatformStand + controle total da velocidade
+-- Fly System estilo Infinity Yield: voa PRA ONDE A CÂMERA OLHA
+-- WASD segue o look da câmera com pitch (olha pra cima + W = sobe).
+-- No mobile o joystick é projetado no espaço 3D da câmera — sem botão nenhum.
+-- LinearVelocity cuida da física: sem deriva, sem "subir vagabundo".
+
+AttachFly = function(char)
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root or root:FindFirstChild("MushFlyVel") then return end
+    local att = Instance.new("Attachment")
+    att.Name = "MushFlyAtt"
+    att.Parent = root
+    local lv = Instance.new("LinearVelocity")
+    lv.Name = "MushFlyVel"
+    lv.Attachment0 = att
+    lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+    lv.VectorVelocity = Vector3.zero
+    lv.MaxForce = 1e9 -- trava de verdade: a física obedece, sem cair devagar
+    lv.RelativeTo = Enum.ActuatorRelativeTo.World
+    lv.Parent = root
+end
+
+DetachFly = function(char)
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local lv = root:FindFirstChild("MushFlyVel")
+    if lv then lv:Destroy() end
+    local att = root:FindFirstChild("MushFlyAtt")
+    if att then att:Destroy() end
+end
+
 RunService.RenderStepped:Connect(function()
     if not State.Fly then return end
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root or not root.Parent then return end
 
-    -- Garante que o Humanoid não retome o controle (ex.: logo após renascer)
+    -- Humanoid não retoma o controle (ex.: logo após renascer)
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum and not hum.PlatformStand then hum.PlatformStand = true end
+    if not root:FindFirstChild("MushFlyVel") then AttachFly(char) end
 
     local camera = workspace.CurrentCamera
     if not camera then return end
+    local look = camera.CFrame.LookVector
+    local right = camera.CFrame.RightVector
+
     local moveDirection = Vector3.new()
-    if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection += camera.CFrame.LookVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection -= camera.CFrame.LookVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection -= camera.CFrame.RightVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection += camera.CFrame.RightVector end
+    local kb = UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.S)
+        or UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.D)
+
+    if kb then
+        -- Desktop: WASD direto no espaço da câmera (com pitch)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection += look end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection -= look end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection -= right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection += right end
+    elseif hum and hum.MoveDirection.Magnitude > 0.01 then
+        -- Mobile/gamepad: joystick traduzido pro espaço 3D da câmera
+        -- (MoveDirection é plano; reprojeta no look/right reais = pitch junto)
+        local yawLook = Vector3.new(look.X, 0, look.Z)
+        if yawLook.Magnitude > 0.01 then
+            yawLook = yawLook.Unit
+            local yawRight = Vector3.new(right.X, 0, right.Z)
+            local yawRightUnit = (yawRight.Magnitude > 0.01) and yawRight.Unit or Vector3.new(0, 0, 0)
+            local md = hum.MoveDirection
+            moveDirection += look * md:Dot(yawLook) + right * md:Dot(yawRightUnit)
+        end
+    end
+
+    -- Espaço/Shift = sobe/desce do mundo (desktop)
     if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection += Vector3.new(0, 1, 0) end
     if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
         moveDirection -= Vector3.new(0, 1, 0)
     end
 
-    -- Mobile/gamepad: MoveDirection do Humanoid (joystick já alimenta isso)
-    if hum and hum.MoveDirection.Magnitude > 0 then
-        moveDirection += hum.MoveDirection
-    end
-    -- Botões de toque SUBIR/DESCER (segurados)
-    if State.FlyUp then
-        moveDirection += Vector3.new(0, 1, 0)
-    end
-    if State.FlyDown then
-        moveDirection -= Vector3.new(0, 1, 0)
-    end
-
-    if moveDirection.Magnitude > 0 then
-        root.AssemblyLinearVelocity = moveDirection.Unit * State.FlySpeed
+    local velocity = (moveDirection.Magnitude > 0) and moveDirection.Unit * State.FlySpeed or Vector3.zero
+    local lv = root:FindFirstChild("MushFlyVel")
+    if lv then
+        lv.VectorVelocity = velocity
     else
-        -- Parado: zera a velocidade todo frame → anula a gravidade = congela no ar
-        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyLinearVelocity = velocity
     end
     root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 end)
@@ -1088,6 +1141,6 @@ print("🎃 Mush Hub carregado! Auto Farm + ESP Candy + Player ESP OK")
 -- Notificação
 game.StarterGui:SetCore("SendNotification", {
     Title = "🎃 Mush Hub",
-    Text = "Carregado! Auto Farm + ESP prontos",
+    Text = "Feito por https",
     Duration = 4
 })
